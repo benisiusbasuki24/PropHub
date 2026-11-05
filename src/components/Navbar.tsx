@@ -85,7 +85,7 @@ export const Navbar: React.FC = () => {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xl font-black tracking-tight text-slate-900">
-                  Go<span className="text-emerald-600">Property</span>
+                  Proper<span className="text-emerald-600">List</span>
                 </span>
                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">
                   ID
@@ -333,7 +333,7 @@ export const Navbar: React.FC = () => {
                 title="Profil Pengguna"
               >
                 <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs ring-2 ring-emerald-500/30">
-                  {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : 'GP'}
+                  {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : 'PL'}
                 </div>
                 <div className="hidden xl:block text-left">
                   <p className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[120px]">

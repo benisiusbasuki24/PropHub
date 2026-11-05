@@ -44,18 +44,18 @@ export const AuthModal: React.FC = () => {
       setCurrentUser({
         ...currentUser,
         displayName: name || 'Pengguna Baru',
-        email: email || 'user@goproperty.id',
+        email: email || 'user@properlist.id',
         role,
         agencyName: role === 'agent' ? agencyName : undefined,
       });
-      triggerNotification('Registrasi Berhasil', `Akun GoProperty sebagai ${role.toUpperCase()} telah terdaftar.`, 'system');
+      triggerNotification('Registrasi Berhasil', `Akun ProperList sebagai ${role.toUpperCase()} telah terdaftar.`, 'system');
     } else {
       setCurrentUser({
         ...currentUser,
         email: email || currentUser.email,
         displayName: name || currentUser.displayName,
       });
-      triggerNotification('Login Berhasil', 'Selamat datang kembali di portal GoProperty.', 'system');
+      triggerNotification('Login Berhasil', 'Selamat datang kembali di portal ProperList.', 'system');
     }
 
     setIsAuthModalOpen(false);
@@ -68,11 +68,11 @@ export const AuthModal: React.FC = () => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black">
-              GP
+              PL
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-900">
-                {currentUser.displayName ? 'Akun GoProperty' : (mode === 'login' ? 'Masuk ke GoProperty' : 'Daftar Akun Baru')}
+                {currentUser.displayName ? 'Akun ProperList' : (mode === 'login' ? 'Masuk ke ProperList' : 'Daftar Akun Baru')}
               </h3>
               <p className="text-[11px] text-slate-500">
                 Portal Jual Beli Properti Indonesia Terpercaya

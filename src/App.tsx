@@ -217,7 +217,7 @@ const MainAppContent: React.FC = () => {
               </div>
             </section>
 
-            {/* Why GoProperty & Privacy Safety Banner */}
+            {/* Why ProperList & Privacy Safety Banner */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-emerald-950 text-white rounded-3xl p-8 sm:p-12 shadow-xl relative overflow-hidden">
                 <div className="max-w-3xl space-y-4 relative z-10">
@@ -228,7 +228,7 @@ const MainAppContent: React.FC = () => {
                     Proteksi Privasi 100% dengan Obrolan Langsung Internal Terenkripsi
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Sistem GoProperty secara otomatis menolak penulisan nomor telepon dan email dalam deskripsi listing untuk menghindarkan Anda dari penipuan, makelar gelap, dan spam telemarketing. Semua negosiasi berlangsung aman di dalam platform kami.
+                    Sistem ProperList secara otomatis menolak penulisan nomor telepon dan email dalam deskripsi listing untuk menghindarkan Anda dari penipuan, makelar gelap, dan spam telemarketing. Semua negosiasi berlangsung aman di dalam platform kami.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">

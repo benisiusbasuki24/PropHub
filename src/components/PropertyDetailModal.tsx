@@ -336,7 +336,7 @@ export const PropertyDetailModal: React.FC = () => {
                     {selectedProperty.ownerRating || 4.9}
                   </span>
                   <span>•</span>
-                  <span>{selectedProperty.ownerAgency || 'GoProperty Certified Member'}</span>
+                  <span>{selectedProperty.ownerAgency || 'ProperList Certified Member'}</span>
                 </div>
               </div>
             </div>

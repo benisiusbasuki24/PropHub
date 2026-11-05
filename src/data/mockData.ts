@@ -513,7 +513,7 @@ export const TESTIMONIALS = [
     role: 'Investor Properti & Direktur Konstruksi',
     city: 'Jakarta',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    comment: 'Portal GoProperty sangat aman dan profesional. Fitur moderasi yang menolak nomor telp langsung di deskripsi terbukti menyaring makelar liar. Sistem obrolan internal sangat responsif dan analitik tren harga se-Indonesia membantu saya menentukan momen investasi tepat!',
+    comment: 'Portal ProperList sangat aman dan profesional. Fitur moderasi yang menolak nomor telp langsung di deskripsi terbukti menyaring makelar liar. Sistem obrolan internal sangat responsif dan analitik tren harga se-Indonesia membantu saya menentukan momen investasi tepat!',
     rating: 5
   },
   {

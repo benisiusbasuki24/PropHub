@@ -52,7 +52,7 @@ export const SuperadminDashboard: React.FC = () => {
       email: 'benisius.rb@gmail.com',
       role: 'superadmin' as UserRole,
       isAgentVerified: true,
-      agency: 'GoProperty Official',
+      agency: 'ProperList Official',
       isPremium: true,
       daysLeft: 44,
     },

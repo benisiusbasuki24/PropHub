@@ -188,7 +188,7 @@ export const MarketAnalyticsView: React.FC = () => {
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 text-xs text-indigo-900 flex items-start gap-2.5">
               <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold">Insight AI Pasar GoProperty:</span>
+                <span className="font-bold">Insight AI Pasar ProperList:</span>
                 <p className="mt-0.5 text-indigo-800 leading-relaxed">
                   Permintaan di wilayah {currentTrend.city} dipicu oleh ekspansi infrastruktur transportasi dan sentimen investasi properti sewa komersial. Kenaikan +{currentTrend.quarterlyGrowthPercent}% melampaui rata-rata inflasi nasional.
                 </p>

@@ -143,26 +143,26 @@ const DEFAULT_FILTERS = {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // User Profile
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('goproperty_user');
+    const saved = localStorage.getItem('properlist_user') || localStorage.getItem('goproperty_user');
     return saved ? JSON.parse(saved) : INITIAL_USER;
   });
 
   // Properties list
   const [properties, setProperties] = useState<Property[]>(() => {
-    const saved = localStorage.getItem('goproperty_listings');
+    const saved = localStorage.getItem('properlist_listings') || localStorage.getItem('goproperty_listings');
     return saved ? JSON.parse(saved) : INITIAL_PROPERTIES;
   });
 
   // Comparison & Favorites
   const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('goproperty_favorites');
+    const saved = localStorage.getItem('properlist_favorites') || localStorage.getItem('goproperty_favorites');
     return saved ? JSON.parse(saved) : ['prop-001'];
   });
   const [comparisonList, setComparisonList] = useState<Property[]>([]);
 
   // KPR Applications
   const [kprApplications, setKprApplications] = useState<KprApplication[]>(() => {
-    const saved = localStorage.getItem('goproperty_kpr');
+    const saved = localStorage.getItem('properlist_kpr') || localStorage.getItem('goproperty_kpr');
     if (saved) return JSON.parse(saved);
     return [
       {
@@ -196,13 +196,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Transactions
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('goproperty_transactions');
+    const saved = localStorage.getItem('properlist_transactions') || localStorage.getItem('goproperty_transactions');
     return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
   });
 
   // Chat
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('goproperty_chats');
+    const saved = localStorage.getItem('properlist_chats') || localStorage.getItem('goproperty_chats');
     if (saved) return JSON.parse(saved);
     return [
       {
@@ -227,7 +227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Notifications
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('goproperty_notifs');
+    const saved = localStorage.getItem('properlist_notifs') || localStorage.getItem('goproperty_notifs');
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
 
@@ -248,31 +248,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('goproperty_user', JSON.stringify(currentUser));
+    localStorage.setItem('properlist_user', JSON.stringify(currentUser));
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_listings', JSON.stringify(properties));
+    localStorage.setItem('properlist_listings', JSON.stringify(properties));
   }, [properties]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_favorites', JSON.stringify(favorites));
+    localStorage.setItem('properlist_favorites', JSON.stringify(favorites));
   }, [favorites]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_kpr', JSON.stringify(kprApplications));
+    localStorage.setItem('properlist_kpr', JSON.stringify(kprApplications));
   }, [kprApplications]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_transactions', JSON.stringify(transactions));
+    localStorage.setItem('properlist_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_chats', JSON.stringify(chatMessages));
+    localStorage.setItem('properlist_chats', JSON.stringify(chatMessages));
   }, [chatMessages]);
 
   useEffect(() => {
-    localStorage.setItem('goproperty_notifs', JSON.stringify(notifications));
+    localStorage.setItem('properlist_notifs', JSON.stringify(notifications));
   }, [notifications]);
 
   // Firebase Auth sync
@@ -398,7 +398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     triggerNotification(
       'Listing Berhasil Diterbitkan!',
-      `Properti "${newProp.title}" telah lolos verifikasi moderasi konten otomatis dan aktif di GoProperty.`,
+      `Properti "${newProp.title}" telah lolos verifikasi moderasi konten otomatis dan aktif di ProperList.`,
       'system',
       'search'
     );
@@ -425,7 +425,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteProperty = (id: string) => {
     setProperties((prev) => prev.filter((item) => item.id !== id));
     setComparisonList((prev) => prev.filter((item) => item.id !== id));
-    triggerNotification('Listing Dihapus', 'Listing properti telah dihapus dari sistem GoProperty.', 'system');
+    triggerNotification('Listing Dihapus', 'Listing properti telah dihapus dari sistem ProperList.', 'system');
     return true;
   };
 
@@ -659,7 +659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         propertyTitle: property?.title,
         propertyImage: property?.images?.[0],
         propertyPrice: property?.price,
-        text: `Terima kasih Bapak/Ibu ${currentUser.displayName}. Pesan Anda sudah kami terima melalui enkripsi GoProperty. Segala dokumen sertifikat (SHM) dan IMB siap kami perlihatkan saat survey lokasi. Ada yang ingin ditanyakan lebih lanjut?`,
+        text: `Terima kasih Bapak/Ibu ${currentUser.displayName}. Pesan Anda sudah kami terima melalui enkripsi ProperList. Segala dokumen sertifikat (SHM) dan IMB siap kami perlihatkan saat survey lokasi. Ada yang ingin ditanyakan lebih lanjut?`,
         timestamp: new Date().toISOString(),
         read: false,
       };
@@ -680,7 +680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           displayName: result.user.displayName || 'Pengguna Terverifikasi',
           photoURL: result.user.photoURL || undefined,
         }));
-        triggerNotification('Login Berhasil', `Selamat datang di GoProperty, ${result.user.displayName || 'User'}!`, 'system');
+        triggerNotification('Login Berhasil', `Selamat datang di ProperList, ${result.user.displayName || 'User'}!`, 'system');
       }
     } catch (e) {
       console.warn('Google Popup skipped or unsupported in iframe, switched to demo authenticated session.', e);
