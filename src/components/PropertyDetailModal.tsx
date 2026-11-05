@@ -25,6 +25,7 @@ import {
   Lock
 } from 'lucide-react';
 import { formatRupiah, calculateDaysRemaining } from '../utils/currency';
+import { PropertyMap } from './PropertyMap';
 
 export const PropertyDetailModal: React.FC = () => {
   const { 
@@ -311,17 +312,9 @@ export const PropertyDetailModal: React.FC = () => {
             </p>
           </div>
 
-          {/* Nearby Facilities */}
-          <div>
-            <h4 className="text-sm font-bold text-slate-900 mb-2">Fasilitas Sekitar & Akses Lokasi</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {selectedProperty.nearbyFacilities.map((fac, i) => (
-                <div key={i} className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{fac}</span>
-                </div>
-              ))}
-            </div>
+          {/* Interactive Google Map & Nearby Facilities */}
+          <div className="pt-2">
+            <PropertyMap property={selectedProperty} />
           </div>
 
           {/* Agent / Owner Profile Card */}

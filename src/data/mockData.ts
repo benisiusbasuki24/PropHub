@@ -11,6 +11,14 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Jakarta Selatan',
     province: 'DKI Jakarta',
     address: 'Jl. Duta Niaga Blok TH, Pondok Indah',
+    coordinates: { lat: -6.2796, lng: 106.7844 },
+    facilityMarkers: [
+      { id: 'pim', name: 'Pondok Indah Mall (PIM 1, 2, 3)', type: 'mall', position: { lat: -6.2654, lng: 106.7831 }, distanceKm: 1.6 },
+      { id: 'mrt', name: 'Stasiun MRT Lebak Bulus Grab', type: 'transport', position: { lat: -6.2902, lng: 106.7749 }, distanceKm: 1.4 },
+      { id: 'rspi', name: 'RS Pondok Indah (Pusat Medis)', type: 'hospital', position: { lat: -6.2828, lng: 106.7825 }, distanceKm: 0.4 },
+      { id: 'jis', name: 'Jakarta Intercultural School (JIS)', type: 'school', position: { lat: -6.2885, lng: 106.7792 }, distanceKm: 1.1 },
+      { id: 'tol', name: 'Gerbang Tol TB Simatupang (JORR)', type: 'toll', position: { lat: -6.2941, lng: 106.7865 }, distanceKm: 1.7 }
+    ],
     landArea: 480,
     buildingArea: 550,
     bedrooms: 5,
@@ -59,6 +67,14 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Tangerang Selatan',
     province: 'Banten',
     address: 'Klaster Vanya Park, BSD City, Pagedangan',
+    coordinates: { lat: -6.3015, lng: 106.6520 },
+    facilityMarkers: [
+      { id: 'aeon', name: 'AEON Mall BSD & QBig', type: 'mall', position: { lat: -6.3045, lng: 106.6435 }, distanceKm: 1.1 },
+      { id: 'krl', name: 'Stasiun KRL Cisauk (Intermoda)', type: 'transport', position: { lat: -6.3241, lng: 106.6412 }, distanceKm: 2.8 },
+      { id: 'eka', name: 'Eka Hospital BSD', type: 'hospital', position: { lat: -6.2995, lng: 106.6678 }, distanceKm: 1.8 },
+      { id: 'prasmul', name: 'Universitas Prasetiya Mulya & ICE', type: 'school', position: { lat: -6.3025, lng: 106.6415 }, distanceKm: 1.2 },
+      { id: 'tol-bsd', name: 'Pintu Tol Serpong - Balaraja', type: 'toll', position: { lat: -6.3120, lng: 106.6380 }, distanceKm: 1.9 }
+    ],
     landArea: 144,
     buildingArea: 180,
     bedrooms: 4,
@@ -107,6 +123,12 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Badung',
     province: 'Bali',
     address: 'Jl. Petitenget No. 88, Seminyak, Kuta Utara',
+    coordinates: { lat: -8.6872, lng: 115.1542 },
+    facilityMarkers: [
+      { id: 'pantai', name: 'Pantai Petitenget & Sunset Point', type: 'beach', position: { lat: -8.6865, lng: 115.1495 }, distanceKm: 0.5 },
+      { id: 'potato', name: 'Potato Head Beach Club & Resort', type: 'mall', position: { lat: -8.6798, lng: 115.1512 }, distanceKm: 0.9 },
+      { id: 'siloam-bali', name: 'RS Siloam Denpasar', type: 'hospital', position: { lat: -8.7042, lng: 115.1845 }, distanceKm: 4.1 }
+    ],
     landArea: 320,
     buildingArea: 400,
     bedrooms: 3,
@@ -153,6 +175,12 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Surabaya',
     province: 'Jawa Timur',
     address: 'Jl. Raya Dharmahusada Indah No. 45, Mulyorejo',
+    coordinates: { lat: -7.2690, lng: 112.7725 },
+    facilityMarkers: [
+      { id: 'unair', name: 'Universitas Airlangga (Kampus C)', type: 'school', position: { lat: -7.2715, lng: 112.7840 }, distanceKm: 1.3 },
+      { id: 'galaxy-mall', name: 'Galaxy Mall Surabaya', type: 'mall', position: { lat: -7.2762, lng: 112.7801 }, distanceKm: 1.1 },
+      { id: 'mitra-keluarga', name: 'RS Mitra Keluarga Kenjeran', type: 'hospital', position: { lat: -7.2612, lng: 112.7872 }, distanceKm: 1.8 }
+    ],
     landArea: 160,
     buildingArea: 420,
     bedrooms: 2,
@@ -200,6 +228,12 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Bandung',
     province: 'Jawa Barat',
     address: 'Kawasan Dago Pakar Resort Kavling Merak',
+    coordinates: { lat: -6.8624, lng: 107.6251 },
+    facilityMarkers: [
+      { id: 'golf-dago', name: 'Mountain View Golf Club Dago', type: 'general', position: { lat: -6.8582, lng: 107.6295 }, distanceKm: 0.8 },
+      { id: 'skyline', name: 'Skyline Cafe & Kuliner Dago Atas', type: 'mall', position: { lat: -6.8540, lng: 107.6210 }, distanceKm: 1.2 },
+      { id: 'itb', name: 'Kampus ITB Ganesha & RS Borromeus', type: 'school', position: { lat: -6.8925, lng: 107.6105 }, distanceKm: 4.2 }
+    ],
     landArea: 650,
     buildingArea: 0,
     bedrooms: 0,
@@ -246,6 +280,13 @@ export const INITIAL_PROPERTIES: Property[] = [
     city: 'Jakarta Selatan',
     province: 'DKI Jakarta',
     address: 'Jl. Jend. Sudirman Kav 52-53, SCBD',
+    coordinates: { lat: -6.2255, lng: 106.8080 },
+    facilityMarkers: [
+      { id: 'pacific-place', name: 'Mall Pacific Place & Ashta District 8', type: 'mall', position: { lat: -6.2248, lng: 106.8095 }, distanceKm: 0.2 },
+      { id: 'mrt-istora', name: 'Stasiun MRT Istora Mandiri', type: 'transport', position: { lat: -6.2230, lng: 106.8068 }, distanceKm: 0.3 },
+      { id: 'idx', name: 'Bursa Efek Indonesia & Gelora Bung Karno', type: 'general', position: { lat: -6.2240, lng: 106.8085 }, distanceKm: 0.2 },
+      { id: 'siloam-semanggi', name: 'RS Siloam Semanggi / MRCCC', type: 'hospital', position: { lat: -6.2198, lng: 106.8155 }, distanceKm: 1.1 }
+    ],
     landArea: 0,
     buildingArea: 165,
     bedrooms: 3,

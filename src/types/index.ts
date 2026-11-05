@@ -6,6 +6,14 @@ export type KprStatus = 'diajukan' | 'verifikasi_berkas' | 'slik_ojk' | 'apprais
 export type TransactionStatus = 'pending' | 'approved' | 'rejected';
 export type PremiumPackageType = 'buyer_contact_pass' | 'agent_listing_boost' | 'agent_boost';
 
+export interface FacilityMarker {
+  id: string;
+  name: string;
+  type: 'transport' | 'mall' | 'hospital' | 'school' | 'toll' | 'beach' | 'general';
+  position: { lat: number; lng: number };
+  distanceKm?: number;
+}
+
 export interface Property {
   id: string;
   title: string;
@@ -16,6 +24,8 @@ export interface Property {
   city: string;
   province: string;
   address: string;
+  coordinates?: { lat: number; lng: number };
+  facilityMarkers?: FacilityMarker[];
   landArea: number; // m² (LT)
   buildingArea: number; // m² (LB)
   bedrooms: number;
