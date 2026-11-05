@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "Property listing for sale or rent across Indonesia",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "price": { "type": "number" },
+        "propertyType": { "type": "string", "enum": ["rumah", "apartemen", "ruko", "tanah", "villa", "gudang", "kantor"] },
+        "listingType": { "type": "string", "enum": ["jual", "sewa"] },
+        "city": { "type": "string" },
+        "province": { "type": "string" },
+        "address": { "type": "string" },
+        "landArea": { "type": "number" },
+        "buildingArea": { "type": "number" },
+        "bedrooms": { "type": "number" },
+        "bathrooms": { "type": "number" },
+        "electricity": { "type": "number" },
+        "certificate": { "type": "string", "enum": ["SHM", "HGB", "Girik", "Strata Title", "Lainnya"] },
+        "images": { "type": "array" },
+        "nearbyFacilities": { "type": "array" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "ownerRole": { "type": "string", "enum": ["agent", "owner"] },
+        "isVerified": { "type": "boolean" },
+        "isPromoted": { "type": "boolean" },
+        "promotedUntil": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "sold", "rented", "pending_review", "rejected"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "price", "propertyType", "city", "province", "ownerId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role and premium subscription status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["buyer", "agent", "owner", "admin", "superadmin"] },
+        "isAgentVerified": { "type": "boolean" },
+        "agencyName": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "isPremium": { "type": "boolean" },
+        "premiumUntil": { "type": "string" },
+        "premiumType": { "type": "string", "enum": ["buyer_pass", "agent_boost", "none"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Premium 44-day pass payment transaction with CIMB Niaga manual verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "packageType": { "type": "string", "enum": ["buyer_contact_pass", "agent_listing_boost"] },
+        "durationDays": { "type": "number" },
+        "amount": { "type": "number" },
+        "bankName": { "type": "string" },
+        "bankAccount": { "type": "string" },
+        "accountHolder": { "type": "string" },
+        "senderBank": { "type": "string" },
+        "senderAccountName": { "type": "string" },
+        "proofImageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNotes": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "packageType", "amount", "status"]
+    },
+    "KprApplication": {
+      "title": "KprApplication",
+      "description": "Mortgage calculation and online application with tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "propertyTitle": { "type": "string" },
+        "applicantName": { "type": "string" },
+        "applicantIncome": { "type": "number" },
+        "propertyPrice": { "type": "number" },
+        "downPayment": { "type": "number" },
+        "loanAmount": { "type": "number" },
+        "tenorYears": { "type": "number" },
+        "bankPreference": { "type": "string" },
+        "estimatedMonthlyInstallment": { "type": "number" },
+        "status": { "type": "string", "enum": ["diajukan", "verifikasi_berkas", "slik_ojk", "appraisal", "disetujui", "ditolak"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "propertyPrice", "loanAmount", "status"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Internal direct chat message between buyers and agents/owners",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "threadId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "text": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["threadId", "senderId", "receiverId", "text"]
+    },
+    "PriceAlert": {
+      "title": "PriceAlert",
+      "description": "Alert notification for property price changes in specific regions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "region": { "type": "string" },
+        "changePercentage": { "type": "number" },
+        "direction": { "type": "string", "enum": ["up", "down"] },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["region", "changePercentage", "message"]
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Collection of all property listings"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and permissions"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Payment transactions for 44-day premium features"
+    },
+    "/kprApplications/{kprId}": {
+      "schema": "KprApplication",
+      "description": "KPR applications for tracking"
+    },
+    "/chatMessages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time chat messages"
+    },
+    "/priceAlerts/{alertId}": {
+      "schema": "PriceAlert",
+      "description": "Market price change alerts"
+    }
+  }
+}

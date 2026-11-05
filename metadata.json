@@ -1,0 +1,6 @@
+{
+  "name": "GoProperty",
+  "description": "Portal jual beli properti modern di Indonesia dengan filter pencarian mendalam, kalkulator KPR, analitik tren harga pasar, obrolan internal, dan verifikasi dokumen properti.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
