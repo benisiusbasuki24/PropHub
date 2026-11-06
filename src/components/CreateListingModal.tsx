@@ -85,7 +85,7 @@ export const CreateListingModal: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!moderationResult.isValid) {
@@ -98,7 +98,7 @@ export const CreateListingModal: React.FC = () => {
       return;
     }
 
-    const res = addProperty({
+    const res = await addProperty({
       title,
       description,
       price: Number(price),
@@ -338,7 +338,7 @@ export const CreateListingModal: React.FC = () => {
                       Penulisan Kontak Terdeteksi: Sistem Menolak Penerbitan!
                     </h5>
                     <p className="text-xs text-rose-800 mt-1 leading-relaxed">
-                      Sistem ProperList otomatis menolak pencantuman nomor telepon (misal: 08xx / WhatsApp) dan alamat email di dalam deskripsi iklan. Hal ini dirancang untuk menjaga privasi kedua belah pihak dan memastikan semua interaksi terlindungi oleh sistem enkripsi Obrolan Langsung internal.
+                      Sistem ProperListId otomatis menolak pencantuman nomor telepon (misal: 08xx / WhatsApp) dan alamat email di dalam deskripsi iklan. Hal ini dirancang untuk menjaga privasi kedua belah pihak dan memastikan semua interaksi terlindungi oleh sistem enkripsi Obrolan Langsung internal.
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <span className="text-[10px] font-bold text-rose-700">Terdeteksi:</span>
@@ -354,7 +354,7 @@ export const CreateListingModal: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2 text-[11px] text-emerald-700 bg-emerald-50/80 px-3 py-1.5 rounded-xl border border-emerald-200">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Deskripsi aman dan mematuhi kebijakan privasi ProperList.</span>
+                <span>Deskripsi aman dan mematuhi kebijakan privasi ProperListId.</span>
               </div>
             )}
           </div>

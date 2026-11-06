@@ -42,6 +42,7 @@
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
+        "username": { "type": "string" },
         "photoURL": { "type": "string" },
         "phone": { "type": "string" },
         "role": { "type": "string", "enum": ["buyer", "agent", "owner", "admin", "superadmin"] },

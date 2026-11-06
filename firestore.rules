@@ -25,8 +25,9 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow read: if true; // Public profiles (agent name, rating, contact via internal chat)
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 

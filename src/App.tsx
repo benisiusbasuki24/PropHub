@@ -13,6 +13,7 @@ import { PaymentModal } from './components/PaymentModal';
 import { ChatDrawer } from './components/ChatDrawer';
 import { SuperadminDashboard } from './components/SuperadminDashboard';
 import { AuthModal } from './components/AuthModal';
+import { LandingPage } from './components/LandingPage';
 import { TESTIMONIALS } from './data/mockData';
 import { 
   Building2, 
@@ -146,9 +147,13 @@ const MainAppContent: React.FC = () => {
       <Navbar />
 
       <main className="flex-1">
-        {/* TAB 1: HOME LANDING PAGE */}
-        {activeTab === 'home' && (
-          <div className="space-y-16 pb-16">
+        {!currentUser ? (
+          <LandingPage />
+        ) : (
+          <>
+            {/* TAB 1: HOME LANDING PAGE */}
+            {activeTab === 'home' && (
+              <div className="space-y-16 pb-16">
             {/* Hero Search Section */}
             <HeroSearch />
 
@@ -210,14 +215,33 @@ const MainAppContent: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {properties.slice(0, 6).map((prop) => (
-                  <PropertyCard key={prop.id} property={prop} />
-                ))}
-              </div>
+              {properties.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs">
+                  <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  <h3 className="text-base font-bold text-slate-700">Belum Ada Listing Properti Terdaftar</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto mb-4">
+                    Semua data dummy telah dibersihkan. Pasang iklan properti pertama Anda (Rumah, Ruko, Apartemen, Tanah, Villa) ke cloud database Firebase!
+                  </p>
+                  {(currentUser.role === 'agent' || currentUser.role === 'owner' || currentUser.role === 'superadmin') && (
+                    <button
+                      onClick={() => setIsCreateListingOpen(true)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Pasang Iklan Sekarang</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {properties.slice(0, 6).map((prop) => (
+                    <PropertyCard key={prop.id} property={prop} />
+                  ))}
+                </div>
+              )}
             </section>
 
-            {/* Why ProperList & Privacy Safety Banner */}
+            {/* Why ProperListId & Privacy Safety Banner */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-emerald-950 text-white rounded-3xl p-8 sm:p-12 shadow-xl relative overflow-hidden">
                 <div className="max-w-3xl space-y-4 relative z-10">
@@ -228,7 +252,7 @@ const MainAppContent: React.FC = () => {
                     Proteksi Privasi 100% dengan Obrolan Langsung Internal Terenkripsi
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Sistem ProperList secara otomatis menolak penulisan nomor telepon dan email dalam deskripsi listing untuk menghindarkan Anda dari penipuan, makelar gelap, dan spam telemarketing. Semua negosiasi berlangsung aman di dalam platform kami.
+                    Sistem ProperListId secara otomatis menolak penulisan nomor telepon dan email dalam deskripsi listing untuk menghindarkan Anda dari penipuan, makelar gelap, dan spam telemarketing. Semua negosiasi berlangsung aman di dalam platform kami.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
@@ -261,48 +285,50 @@ const MainAppContent: React.FC = () => {
             </section>
 
             {/* Testimonials */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center max-w-2xl mx-auto mb-10">
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase">
-                  Ulasan Pengguna Nyata
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-2">
-                  Dipercaya Pembeli, Agen & Investor Se-Indonesia
-                </h2>
-              </div>
+            {TESTIMONIALS.length > 0 && (
+              <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="text-center max-w-2xl mx-auto mb-10">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase">
+                    Ulasan Pengguna Nyata
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-2">
+                    Dipercaya Pembeli, Agen & Investor Se-Indonesia
+                  </h2>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {TESTIMONIALS.map((t) => (
-                  <div
-                    key={t.id}
-                    className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-1 text-amber-400 mb-3">
-                        {[...Array(t.rating)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 fill-current" />
-                        ))}
-                      </div>
-                      <p className="text-xs text-slate-600 leading-relaxed italic">
-                        "{t.comment}"
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-4 mt-4 border-t border-slate-100">
-                      <img
-                        src={t.avatar}
-                        alt={t.name}
-                        className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                      />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {TESTIMONIALS.map((t) => (
+                    <div
+                      key={t.id}
+                      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between"
+                    >
                       <div>
-                        <h4 className="font-bold text-xs text-slate-900">{t.name}</h4>
-                        <p className="text-[10px] text-slate-500">{t.role} • {t.city}</p>
+                        <div className="flex items-center gap-1 text-amber-400 mb-3">
+                          {[...Array(t.rating)].map((_, i) => (
+                            <Star key={i} className="w-4 h-4 fill-current" />
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed italic">
+                          "{t.comment}"
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-4 mt-4 border-t border-slate-100">
+                        <img
+                          src={t.avatar}
+                          alt={t.name}
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                        />
+                        <div>
+                          <h4 className="font-bold text-xs text-slate-900">{t.name}</h4>
+                          <p className="text-[10px] text-slate-500">{t.role} • {t.city}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 
@@ -568,6 +594,8 @@ const MainAppContent: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
             <SuperadminDashboard />
           </div>
+        )}
+          </>
         )}
       </main>
 

@@ -24,6 +24,7 @@ export const KprCalculatorModal: React.FC = () => {
     currentUser, 
     kprApplications, 
     submitKprApplication, 
+    setIsAuthModalOpen,
     triggerNotification 
   } = useApp();
 
@@ -38,9 +39,9 @@ export const KprCalculatorModal: React.FC = () => {
   const [selectedBank, setSelectedBank] = useState<string>('Bank CIMB NIAGA');
 
   // Application form states
-  const [applicantName, setApplicantName] = useState(currentUser.displayName || '');
-  const [applicantPhone, setApplicantPhone] = useState(currentUser.phone || '081234567890');
-  const [applicantEmail, setApplicantEmail] = useState(currentUser.email || 'benisius.rb@gmail.com');
+  const [applicantName, setApplicantName] = useState(currentUser?.displayName || '');
+  const [applicantPhone, setApplicantPhone] = useState(currentUser?.phone || '');
+  const [applicantEmail, setApplicantEmail] = useState(currentUser?.email || '');
   const [applicantIncome, setApplicantIncome] = useState<number>(35000000);
 
   if (!isKprModalOpen) return null;
@@ -63,6 +64,12 @@ export const KprCalculatorModal: React.FC = () => {
 
   const handleApplyKpr = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!currentUser) {
+      triggerNotification('Login Diperlukan', 'Silakan masuk atau daftar terlebih dahulu untuk mengajukan KPR online.', 'system');
+      setIsAuthModalOpen(true);
+      return;
+    }
 
     submitKprApplication({
       userId: currentUser.uid,

@@ -36,7 +36,7 @@ export const PaymentModal: React.FC = () => {
 
   // Form states
   const [senderBank, setSenderBank] = useState('Bank BCA');
-  const [senderAccountName, setSenderAccountName] = useState(currentUser.displayName || '');
+  const [senderAccountName, setSenderAccountName] = useState(currentUser?.displayName || '');
   const [proofImageUrl, setProofImageUrl] = useState(
     'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80'
   );
@@ -46,7 +46,9 @@ export const PaymentModal: React.FC = () => {
 
   const currentPackage = paymentPackageSelected;
   const packagePrice = currentPackage === 'agent_listing_boost' ? 299000 : 149000;
-  const daysRemaining = calculateDaysRemaining(currentUser.premiumUntil);
+  const daysRemaining = currentUser?.premiumUntil
+    ? calculateDaysRemaining(currentUser.premiumUntil)
+    : { days: 0, isExpired: true };
 
   const bankAccountInfo = {
     bankName: 'Bank CIMB NIAGA',
@@ -80,7 +82,9 @@ export const PaymentModal: React.FC = () => {
   };
 
   // Filter user's transactions
-  const userTransactions = transactions.filter((t) => t.userId === currentUser.uid);
+  const userTransactions = currentUser 
+    ? transactions.filter((t) => t.userId === currentUser.uid) 
+    : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">

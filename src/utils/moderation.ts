@@ -93,8 +93,8 @@ export function validateListingDescription(text: string): ModerationResult {
 
   const isValid = violations.length === 0;
   const explanation = isValid
-    ? 'Deskripsi mematuhi standar privasi platform ProperList.'
-    : `Sistem otomatis menolak deskripsi karena mengandung ${violations.join(', ')} (${flaggedTerms.slice(0, 3).join(', ')}). Untuk keamanan dan perlindungan privasi data pengguna, harap gunakan fitur Obrolan Langsung internal ProperList.`;
+    ? 'Deskripsi mematuhi standar privasi platform ProperListId.'
+    : `Sistem otomatis menolak deskripsi karena mengandung ${violations.join(', ')} (${flaggedTerms.slice(0, 3).join(', ')}). Untuk keamanan dan perlindungan privasi data pengguna, harap gunakan fitur Obrolan Langsung internal ProperListId.`;
 
   return {
     isValid,

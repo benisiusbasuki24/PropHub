@@ -24,6 +24,7 @@ export const PropertyComparisonModal: React.FC = () => {
     currentUser,
     setIsPaymentModalOpen,
     setPaymentPackageSelected,
+    setIsAuthModalOpen,
     triggerNotification
   } = useApp();
 
@@ -40,6 +41,12 @@ export const PropertyComparisonModal: React.FC = () => {
   }
 
   const handleContact = (property: typeof comparisonList[0]) => {
+    if (!currentUser) {
+      triggerNotification('Login Diperlukan', 'Silakan masuk atau daftar terlebih dahulu untuk menghubungi agen/pemilik properti.', 'system');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     if (!currentUser.isPremium && currentUser.role === 'buyer') {
       setPaymentPackageSelected('buyer_contact_pass');
       setIsPaymentModalOpen(true);

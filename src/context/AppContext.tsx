@@ -12,27 +12,23 @@ import {
   PremiumPackageType
 } from '../types';
 import { 
-  INITIAL_PROPERTIES, 
-  INITIAL_USER, 
-  INITIAL_TRANSACTIONS, 
-  INITIAL_MARKET_TRENDS, 
-  INITIAL_NOTIFICATIONS 
+  INITIAL_MARKET_TRENDS 
 } from '../data/mockData';
 import { validateListingDescription, evaluatePropertyAuthenticity } from '../utils/moderation';
-import { auth, db } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType, testFirestoreConnection } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 interface AppContextType {
-  currentUser: UserProfile;
-  setCurrentUser: (user: UserProfile) => void;
-  switchRole: (role: UserRole) => void;
+  currentUser: UserProfile | null;
+  setCurrentUser: (user: UserProfile | null) => void;
+  allUsers: UserProfile[];
   
   // Properties
   properties: Property[];
-  addProperty: (propertyData: Partial<Property>) => { success: boolean; error?: string; property?: Property };
-  updateProperty: (id: string, updates: Partial<Property>) => { success: boolean; error?: string };
-  deleteProperty: (id: string) => boolean;
+  addProperty: (propertyData: Partial<Property>) => Promise<{ success: boolean; error?: string; property?: Property }>;
+  updateProperty: (id: string, updates: Partial<Property>) => Promise<{ success: boolean; error?: string }>;
+  deleteProperty: (id: string) => Promise<boolean>;
   
   // Favorites & Comparison
   favorites: string[];
@@ -44,8 +40,8 @@ interface AppContextType {
   
   // KPR
   kprApplications: KprApplication[];
-  submitKprApplication: (data: Omit<KprApplication, 'id' | 'status' | 'statusHistory' | 'createdAt' | 'updatedAt'>) => void;
-  updateKprStatus: (id: string, newStatus: KprStatus, note: string) => void;
+  submitKprApplication: (data: Omit<KprApplication, 'id' | 'status' | 'statusHistory' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateKprStatus: (id: string, newStatus: KprStatus, note: string) => Promise<void>;
   
   // Transactions & 44-day Premium
   transactions: Transaction[];
@@ -56,12 +52,17 @@ interface AppContextType {
     senderAccountName: string;
     proofImageUrl: string;
     propertyIdToBoost?: string;
-  }) => void;
-  verifyTransaction: (id: string, isApproved: boolean, adminNotes?: string) => void;
+  }) => Promise<void>;
+  verifyTransaction: (id: string, isApproved: boolean, adminNotes?: string) => Promise<void>;
+  
+  // User Management
+  toggleAgentVerification: (userId: string, isVerified: boolean) => Promise<void>;
+  toggleUserPremium: (userId: string, isPremium: boolean, days?: number) => Promise<void>;
+  deleteUserAccount: (userId: string) => Promise<void>;
   
   // Chat
   chatMessages: ChatMessage[];
-  sendMessage: (receiverId: string, receiverName: string, text: string, property?: Property) => void;
+  sendMessage: (receiverId: string, receiverName: string, text: string, property?: Property) => Promise<void>;
   activeChatPartner: { id: string; name: string; property?: Property } | null;
   setActiveChatPartner: (partner: { id: string; name: string; property?: Property } | null) => void;
   isChatOpen: boolean;
@@ -114,8 +115,10 @@ interface AppContextType {
   setSearchFilters: React.Dispatch<React.SetStateAction<any>>;
   resetFilters: () => void;
   
-  // Auth helpers
+  // Auth operations
   handleGoogleLogin: () => Promise<void>;
+  handleRegister: (data: { displayName: string; username: string; email: string; phone?: string; role: UserRole; agencyName?: string }) => Promise<{ success: boolean; error?: string }>;
+  handleLogin: (identifier: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
   handleLogout: () => Promise<void>;
 }
 
@@ -141,98 +144,30 @@ const DEFAULT_FILTERS = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // User Profile
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('properlist_user') || localStorage.getItem('goproperty_user');
-    return saved ? JSON.parse(saved) : INITIAL_USER;
+  // User Profile: null means unauthenticated / logged out (visitor starts on landing page)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      localStorage.removeItem('goproperty_user');
+      localStorage.removeItem('properlist_user');
+      const saved = localStorage.getItem('properlistid_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  // Properties list
-  const [properties, setProperties] = useState<Property[]>(() => {
-    const saved = localStorage.getItem('properlist_listings') || localStorage.getItem('goproperty_listings');
-    return saved ? JSON.parse(saved) : INITIAL_PROPERTIES;
-  });
-
-  // Comparison & Favorites
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('properlist_favorites') || localStorage.getItem('goproperty_favorites');
-    return saved ? JSON.parse(saved) : ['prop-001'];
-  });
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [comparisonList, setComparisonList] = useState<Property[]>([]);
+  const [kprApplications, setKprApplications] = useState<KprApplication[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [marketTrends] = useState<MarketTrend[]>(INITIAL_MARKET_TRENDS);
 
-  // KPR Applications
-  const [kprApplications, setKprApplications] = useState<KprApplication[]>(() => {
-    const saved = localStorage.getItem('properlist_kpr') || localStorage.getItem('goproperty_kpr');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'KPR-2026-001',
-        userId: 'user-benisius-admin',
-        applicantName: 'Benisius Rahmat Basuki',
-        applicantPhone: '081234567890',
-        applicantEmail: 'benisius.rb@gmail.com',
-        applicantIncome: 45000000,
-        propertyId: 'prop-001',
-        propertyTitle: 'Modern Tropical Villa Luxury di Pondok Indah',
-        propertyCity: 'Jakarta Selatan',
-        propertyPrice: 18500000000,
-        downPayment: 3700000000, // 20%
-        loanAmount: 14800000000,
-        tenorYears: 20,
-        interestRate: 6.75,
-        bankPreference: 'Bank CIMB NIAGA',
-        monthlyInstallment: 112500000,
-        status: 'slik_ojk',
-        statusHistory: [
-          { status: 'diajukan', timestamp: '2026-10-28T09:00:00Z', note: 'Permohonan KPR online berhasil didaftarkan.' },
-          { status: 'verifikasi_berkas', timestamp: '2026-10-29T14:30:00Z', note: 'Kelengkapan KTP, NPWP, dan Slip Gaji 3 bulan terverifikasi lengkap.' },
-          { status: 'slik_ojk', timestamp: '2026-11-02T10:00:00Z', note: 'Sedang dalam pengecekan riwayat kredit BI Checking / SLIK OJK perbankan.' }
-        ],
-        createdAt: '2026-10-28T09:00:00Z',
-        updatedAt: '2026-11-02T10:00:00Z'
-      }
-    ];
-  });
-
-  // Transactions
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('properlist_transactions') || localStorage.getItem('goproperty_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-  });
-
-  // Chat
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('properlist_chats') || localStorage.getItem('goproperty_chats');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'msg-1',
-        threadId: 'thread-agent-001',
-        senderId: 'agent-001',
-        senderName: 'Hendrawan Pratama (Century Premier)',
-        receiverId: 'user-benisius-admin',
-        receiverName: 'Benisius Rahmat Basuki',
-        propertyId: 'prop-001',
-        propertyTitle: 'Modern Tropical Villa Luxury di Pondok Indah',
-        propertyImage: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=300&q=80',
-        propertyPrice: 18500000000,
-        text: 'Halo Bapak Benisius, terima kasih telah berminat dengan Villa Pondok Indah. Dokumen sertifikat SHM dan IMB sudah kami validasi di BPN. Kapan Bapak ada waktu luang untuk private survey lokasi?',
-        timestamp: '2026-11-04T11:30:00Z',
-        read: true
-      }
-    ];
-  });
   const [activeChatPartner, setActiveChatPartner] = useState<{ id: string; name: string; property?: Property } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-
-  // Notifications
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('properlist_notifs') || localStorage.getItem('goproperty_notifs');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-  });
-
-  // Market Trends
-  const [marketTrends] = useState<MarketTrend[]>(INITIAL_MARKET_TRENDS);
 
   // Navigation & Modals
   const [activeTab, setActiveTab] = useState<'home' | 'search' | 'kpr' | 'compare' | 'market' | 'admin' | 'premium'>('home');
@@ -246,56 +181,156 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Search Filters
   const [searchFilters, setSearchFilters] = useState(DEFAULT_FILTERS);
 
-  // Sync to localStorage
+  // Sync currentUser to localStorage
   useEffect(() => {
-    localStorage.setItem('properlist_user', JSON.stringify(currentUser));
+    if (currentUser) {
+      localStorage.setItem('properlistid_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('properlistid_user');
+    }
   }, [currentUser]);
 
+  // Test Firestore connection on boot
   useEffect(() => {
-    localStorage.setItem('properlist_listings', JSON.stringify(properties));
-  }, [properties]);
+    testFirestoreConnection();
+  }, []);
 
+  // Real-time Firestore sync: properties
   useEffect(() => {
-    localStorage.setItem('properlist_favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    const unsub = onSnapshot(collection(db, 'properties'), (snapshot) => {
+      const loaded: Property[] = [];
+      snapshot.forEach((docSnap) => {
+        loaded.push({ id: docSnap.id, ...(docSnap.data() as any) });
+      });
+      // Sort: promoted first, then newest
+      loaded.sort((a, b) => {
+        if (a.isPromoted && !b.isPromoted) return -1;
+        if (!a.isPromoted && b.isPromoted) return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+      setProperties(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'properties');
+    });
 
-  useEffect(() => {
-    localStorage.setItem('properlist_kpr', JSON.stringify(kprApplications));
-  }, [kprApplications]);
+    return () => unsub();
+  }, []);
 
+  // Real-time Firestore sync: transactions
   useEffect(() => {
-    localStorage.setItem('properlist_transactions', JSON.stringify(transactions));
-  }, [transactions]);
+    const unsub = onSnapshot(collection(db, 'transactions'), (snapshot) => {
+      const loaded: Transaction[] = [];
+      snapshot.forEach((docSnap) => {
+        loaded.push({ id: docSnap.id, ...(docSnap.data() as any) });
+      });
+      loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setTransactions(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'transactions');
+    });
 
-  useEffect(() => {
-    localStorage.setItem('properlist_chats', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+    return () => unsub();
+  }, []);
 
+  // Real-time Firestore sync: kprApplications
   useEffect(() => {
-    localStorage.setItem('properlist_notifs', JSON.stringify(notifications));
-  }, [notifications]);
+    const unsub = onSnapshot(collection(db, 'kprApplications'), (snapshot) => {
+      const loaded: KprApplication[] = [];
+      snapshot.forEach((docSnap) => {
+        loaded.push({ id: docSnap.id, ...(docSnap.data() as any) });
+      });
+      loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setKprApplications(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'kprApplications');
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Real-time Firestore sync: chatMessages
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'chatMessages'), (snapshot) => {
+      const loaded: ChatMessage[] = [];
+      snapshot.forEach((docSnap) => {
+        loaded.push({ id: docSnap.id, ...(docSnap.data() as any) });
+      });
+      loaded.sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
+      setChatMessages(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'chatMessages');
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Real-time Firestore sync: users
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const loaded: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        loaded.push({ uid: docSnap.id, ...(docSnap.data() as any) });
+      });
+      setAllUsers(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    return () => unsub();
+  }, []);
 
   // Firebase Auth sync
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          uid: user.uid,
-          email: user.email || 'benisius.rb@gmail.com',
-          displayName: user.displayName || prev.displayName,
-          photoURL: user.photoURL || undefined,
-        }));
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const snap = await getDoc(userDocRef);
+          if (snap.exists()) {
+            const data = snap.data() as UserProfile;
+            setCurrentUser(data);
+          } else {
+            // Create user profile in Firestore
+            const isSuperadmin = user.email === 'benisius.rb@gmail.com';
+            const newUser: UserProfile = {
+              uid: user.uid,
+              email: user.email || 'user@properlistid.id',
+              displayName: user.displayName || 'Pengguna ProperListId',
+              username: user.email ? user.email.split('@')[0] : `user_${user.uid.slice(0, 6)}`,
+              photoURL: user.photoURL || undefined,
+              role: isSuperadmin ? 'superadmin' : 'buyer',
+              isAgentVerified: isSuperadmin,
+              agencyName: isSuperadmin ? 'ProperListId Official' : undefined,
+              rating: 5.0,
+              reviewCount: 0,
+              dealsCount: 0,
+              isPremium: isSuperadmin,
+              premiumUntil: isSuperadmin ? '2027-01-01T00:00:00Z' : undefined,
+              premiumType: isSuperadmin ? 'agent_boost' : 'none',
+              createdAt: new Date().toISOString(),
+            };
+            await setDoc(userDocRef, newUser);
+            setCurrentUser(newUser);
+          }
+        } catch (e) {
+          console.warn('Error reading user profile from Firestore:', e);
+        }
       }
     });
+
     return () => unsubscribe();
   }, []);
 
-  // Notifications helper
-  const triggerNotification = (title: string, message: string, type: AppNotification['type'], linkTab?: string) => {
+  // Trigger in-app notification
+  const triggerNotification = (
+    title: string, 
+    message: string, 
+    type: AppNotification['type'] = 'system',
+    linkTab?: string
+  ) => {
     const newNotif: AppNotification = {
       id: `notif-${Date.now()}`,
-      userId: currentUser.uid,
+      userId: currentUser?.uid || 'guest',
       title,
       message,
       type,
@@ -307,36 +342,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
   };
 
   const markAllNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
-  // Role Switcher for seamless testing
-  const switchRole = (newRole: UserRole) => {
-    setCurrentUser((prev) => ({
-      ...prev,
-      role: newRole,
-      isPremium: newRole === 'superadmin' ? true : prev.isPremium,
-    }));
-    triggerNotification('Peran Akun Diperbarui', `Mode akun Anda sekarang beralih ke: ${newRole.toUpperCase()}`, 'system');
-  };
-
-  // Add Property with Content Moderation & Authenticity Verifier
-  const addProperty = (propertyData: Partial<Property>) => {
-    // 1. Content Moderation on Description
-    const modResult = validateListingDescription(propertyData.description || '');
-    if (!modResult.isValid) {
-      return {
-        success: false,
-        error: modResult.explanation,
-      };
+  // Property CRUD (Real-time Cloud Firestore)
+  const addProperty = async (propertyData: Partial<Property>) => {
+    if (!currentUser) {
+      return { success: false, error: 'Silakan login terlebih dahulu untuk memasang iklan.' };
     }
 
-    // 2. Automated Authenticity Evaluation
-    const authReport = evaluatePropertyAuthenticity({
+    if (currentUser.role !== 'agent' && currentUser.role !== 'owner' && currentUser.role !== 'superadmin') {
+      return { success: false, error: 'Hanya akun Agen atau Pemilik Properti yang dapat memasang iklan.' };
+    }
+
+    // Strict internal privacy moderation check
+    if (propertyData.description) {
+      const modResult = validateListingDescription(propertyData.description);
+      if (!modResult.isValid) {
+        return {
+          success: false,
+          error: modResult.explanation,
+        };
+      }
+    }
+
+    const authenticity = evaluatePropertyAuthenticity({
       title: propertyData.title || '',
       description: propertyData.description || '',
       price: propertyData.price || 0,
@@ -344,69 +380,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       buildingArea: propertyData.buildingArea || 0,
       images: propertyData.images || [],
       certificate: propertyData.certificate || 'SHM',
-      shmVerified: propertyData.documentDetails?.shmVerified,
-      pbgVerified: propertyData.documentDetails?.pbgVerified,
+      shmVerified: propertyData.certificate === 'SHM',
+      pbgVerified: true,
     });
-
-    const isPromoted = currentUser.isPremium && currentUser.premiumType === 'agent_boost';
-    const nowIso = new Date().toISOString();
-    const promotedUntil = isPromoted 
-      ? new Date(Date.now() + 44 * 24 * 60 * 60 * 1000).toISOString()
-      : undefined;
+    const newId = `prop-${Date.now()}`;
 
     const newProp: Property = {
-      id: `prop-${Date.now()}`,
-      title: propertyData.title || 'Properti Baru',
+      id: newId,
+      title: propertyData.title || 'Properti Tanpa Judul',
       description: propertyData.description || '',
-      price: Number(propertyData.price) || 1000000000,
+      price: propertyData.price || 0,
       propertyType: propertyData.propertyType || 'rumah',
       listingType: propertyData.listingType || 'jual',
       city: propertyData.city || 'Jakarta Selatan',
       province: propertyData.province || 'DKI Jakarta',
       address: propertyData.address || '',
-      landArea: Number(propertyData.landArea) || 100,
-      buildingArea: Number(propertyData.buildingArea) || 100,
-      bedrooms: Number(propertyData.bedrooms) || 2,
-      bathrooms: Number(propertyData.bathrooms) || 1,
-      electricity: Number(propertyData.electricity) || 2200,
+      coordinates: propertyData.coordinates || { lat: -6.2088, lng: 106.8456 },
+      facilityMarkers: propertyData.facilityMarkers || [],
+      landArea: propertyData.landArea || 100,
+      buildingArea: propertyData.buildingArea || 80,
+      bedrooms: propertyData.bedrooms || 2,
+      bathrooms: propertyData.bathrooms || 1,
+      electricity: propertyData.electricity || 2200,
       certificate: propertyData.certificate || 'SHM',
       images: propertyData.images && propertyData.images.length > 0 
         ? propertyData.images 
         : ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'],
-      nearbyFacilities: propertyData.nearbyFacilities || ['Dekat Akses Jalan Utama', 'Dekat Fasilitas Umum'],
+      nearbyFacilities: propertyData.nearbyFacilities || ['Akses Jalan Utama'],
       ownerId: currentUser.uid,
       ownerName: currentUser.displayName,
       ownerRole: currentUser.role === 'agent' ? 'agent' : 'owner',
-      ownerAgency: currentUser.agencyName || 'Independent Seller',
-      ownerRating: currentUser.rating || 4.9,
-      isVerified: true,
-      isPromoted: !!isPromoted,
-      promotedUntil,
-      authenticityScore: authReport.score,
-      documentDetails: propertyData.documentDetails || {
+      ownerAgency: currentUser.agencyName,
+      ownerRating: currentUser.rating || 5.0,
+      isVerified: currentUser.isAgentVerified || currentUser.role === 'superadmin',
+      isPromoted: Boolean(currentUser.isPremium && currentUser.premiumType === 'agent_boost'),
+      promotedUntil: currentUser.premiumUntil,
+      authenticityScore: authenticity.score,
+      documentDetails: {
         shmVerified: propertyData.certificate === 'SHM',
         pbgVerified: true,
         pbbClear: true,
       },
       viewsCount: 1,
       status: 'active',
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    setProperties((prev) => [newProp, ...prev]);
-
-    triggerNotification(
-      'Listing Berhasil Diterbitkan!',
-      `Properti "${newProp.title}" telah lolos verifikasi moderasi konten otomatis dan aktif di ProperList.`,
-      'system',
-      'search'
-    );
-
-    return { success: true, property: newProp };
+    try {
+      await setDoc(doc(db, 'properties', newId), newProp);
+      triggerNotification(
+        'Listing Berhasil Diterbitkan!',
+        `Properti "${newProp.title}" telah lolos verifikasi moderasi konten dan tersimpan di cloud Firebase ProperListId.`,
+        'system',
+        'search'
+      );
+      return { success: true, property: newProp };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `properties/${newId}`);
+    }
   };
 
-  const updateProperty = (id: string, updates: Partial<Property>) => {
+  const updateProperty = async (id: string, updates: Partial<Property>) => {
     if (updates.description) {
       const modResult = validateListingDescription(updates.description);
       if (!modResult.isValid) {
@@ -414,19 +449,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    setProperties((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item))
-    );
-
-    triggerNotification('Listing Diperbarui', 'Pembaruan data properti berhasil disimpan.', 'system');
-    return { success: true };
+    try {
+      const propertyRef = doc(db, 'properties', id);
+      await updateDoc(propertyRef, {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+      triggerNotification('Listing Diperbarui', 'Pembaruan data properti berhasil disinkronkan ke cloud.', 'system');
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `properties/${id}`);
+    }
   };
 
-  const deleteProperty = (id: string) => {
-    setProperties((prev) => prev.filter((item) => item.id !== id));
-    setComparisonList((prev) => prev.filter((item) => item.id !== id));
-    triggerNotification('Listing Dihapus', 'Listing properti telah dihapus dari sistem ProperList.', 'system');
-    return true;
+  const deleteProperty = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'properties', id));
+      setComparisonList((prev) => prev.filter((item) => item.id !== id));
+      triggerNotification('Listing Dihapus', 'Listing properti telah dihapus dari cloud Firestore ProperListId.', 'system');
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `properties/${id}`);
+    }
   };
 
   // Favorites
@@ -438,15 +482,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Comparison
   const addToComparison = (property: Property): boolean => {
-    if (comparisonList.some((p) => p.id === property.id)) {
-      return false; // already added
-    }
     if (comparisonList.length >= 3) {
-      triggerNotification('Batas Maksimal Perbandingan', 'Anda dapat membandingkan maksimal 3 properti sekaligus.', 'system', 'compare');
+      triggerNotification('Batas Perbandingan', 'Maksimal 3 properti dapat dibandingkan bersamaan.', 'system');
+      return false;
+    }
+    if (comparisonList.some((p) => p.id === property.id)) {
+      triggerNotification('Sudah Ditambahkan', 'Properti ini sudah ada di daftar perbandingan.', 'system');
       return false;
     }
     setComparisonList((prev) => [...prev, property]);
-    triggerNotification('Ditambahkan ke Perbandingan', `"${property.title}" siap dibandingkan.`, 'system', 'compare');
+    triggerNotification('Ditambahkan ke Perbandingan', `Properti ${property.title.slice(0, 30)}... ditambahkan.`, 'system', 'compare');
     return true;
   };
 
@@ -454,74 +499,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setComparisonList((prev) => prev.filter((p) => p.id !== propertyId));
   };
 
-  const clearComparison = () => {
-    setComparisonList([]);
-  };
+  const clearComparison = () => setComparisonList([]);
 
   // KPR Application
-  const submitKprApplication = (
-    data: Omit<KprApplication, 'id' | 'status' | 'statusHistory' | 'createdAt' | 'updatedAt'>
-  ) => {
-    const nowIso = new Date().toISOString();
+  const submitKprApplication = async (data: Omit<KprApplication, 'id' | 'status' | 'statusHistory' | 'createdAt' | 'updatedAt'>) => {
+    const kprId = `KPR-${Date.now()}`;
     const newKpr: KprApplication = {
       ...data,
-      id: `KPR-${Date.now().toString().slice(-6)}`,
+      id: kprId,
       status: 'diajukan',
       statusHistory: [
         {
           status: 'diajukan',
-          timestamp: nowIso,
-          note: `Pengajuan KPR online diteruskan ke analis ${data.bankPreference}.`,
+          timestamp: new Date().toISOString(),
+          note: 'Permohonan KPR online diajukan via platform ProperListId.',
         },
       ],
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    setKprApplications((prev) => [newKpr, ...prev]);
-
-    triggerNotification(
-      'Pengajuan KPR Diterima!',
-      `Permohonan KPR untuk "${newKpr.propertyTitle}" dengan bank ${newKpr.bankPreference} berhasil diajukan dan sedang diproses.`,
-      'kpr',
-      'kpr'
-    );
+    try {
+      await setDoc(doc(db, 'kprApplications', kprId), newKpr);
+      triggerNotification(
+        'Pengajuan KPR Dikirim',
+        `Pengajuan KPR untuk ${data.propertyTitle} sedang diproses verifikasi bank (${data.bankPreference}).`,
+        'kpr',
+        'kpr'
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `kprApplications/${kprId}`);
+    }
   };
 
-  const updateKprStatus = (id: string, newStatus: KprStatus, note: string) => {
-    const nowIso = new Date().toISOString();
-    setKprApplications((prev) =>
-      prev.map((app) => {
-        if (app.id !== id) return app;
-        const updatedHistory = [...app.statusHistory, { status: newStatus, timestamp: nowIso, note }];
-        return {
-          ...app,
-          status: newStatus,
-          statusHistory: updatedHistory,
-          updatedAt: nowIso,
-        };
-      })
-    );
+  const updateKprStatus = async (id: string, newStatus: KprStatus, note: string) => {
+    const existing = kprApplications.find((k) => k.id === id);
+    if (!existing) return;
 
-    const statusLabels: Record<KprStatus, string> = {
-      diajukan: 'Diajukan',
-      verifikasi_berkas: 'Verifikasi Berkas',
-      slik_ojk: 'Pengecekan SLIK OJK / BI Checking',
-      appraisal: 'Penilaian Properti (Appraisal)',
-      disetujui: 'Disetujui (SPK Terbit)',
-      ditolak: 'Belum Memenuhi Syarat',
-    };
+    const newHistory = [
+      ...(existing.statusHistory || []),
+      { status: newStatus, timestamp: new Date().toISOString(), note }
+    ];
 
-    triggerNotification(
-      'Status KPR Diperbarui!',
-      `Pengajuan KPR ID #${id} sekarang berada pada tahap: ${statusLabels[newStatus]}. Catatan: ${note}`,
-      'kpr',
-      'kpr'
-    );
+    try {
+      await updateDoc(doc(db, 'kprApplications', id), {
+        status: newStatus,
+        statusHistory: newHistory,
+        updatedAt: new Date().toISOString(),
+      });
+
+      triggerNotification(
+        'Status KPR Diperbarui',
+        `Pengajuan KPR (${id}): Status kini "${newStatus.replace('_', ' ').toUpperCase()}". Catatan: ${note}`,
+        'kpr',
+        'kpr'
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `kprApplications/${id}`);
+    }
   };
 
-  // Payment Receipt Upload (CIMB Niaga 704095513700 an. Benisius Rahmat Basuki)
-  const submitPaymentReceipt = (data: {
+  // 44-Day Premium Payment Receipt Submission
+  const submitPaymentReceipt = async (data: {
     packageType: PremiumPackageType;
     amount: number;
     senderBank: string;
@@ -529,12 +568,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     proofImageUrl: string;
     propertyIdToBoost?: string;
   }) => {
-    const newTrx: Transaction = {
-      id: `TRX-${Date.now().toString().slice(-6)}`,
+    if (!currentUser) return;
+
+    const txId = `TRX-${Date.now()}`;
+    const newTx: Transaction = {
+      id: txId,
       userId: currentUser.uid,
       userName: currentUser.displayName,
       userEmail: currentUser.email,
-      userPhone: currentUser.phone || '081234567890',
+      userPhone: currentUser.phone || '0812xxxxxxx',
       packageType: data.packageType,
       durationDays: 44,
       amount: data.amount,
@@ -546,90 +588,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       transferDate: new Date().toISOString().split('T')[0],
       proofImageUrl: data.proofImageUrl,
       status: 'pending',
-      adminNotes: 'Menunggu verifikasi admin manual pada mutasi rekening CIMB Niaga',
+      adminNotes: 'Menunggu konfirmasi mutasi rekening Bank CIMB NIAGA',
       createdAt: new Date().toISOString(),
       propertyIdToBoost: data.propertyIdToBoost,
     };
 
-    setTransactions((prev) => [newTrx, ...prev]);
-
-    triggerNotification(
-      'Bukti Transfer Berhasil Diunggah!',
-      'Bukti transfer rekening CIMB Niaga (704095513700 an. Benisius Rahmat Basuki) sedang diverifikasi oleh admin. Fitur premium 44 hari akan aktif otomatis.',
-      'transaction',
-      'admin'
-    );
+    try {
+      await setDoc(doc(db, 'transactions', txId), newTx);
+      triggerNotification(
+        'Bukti Pembayaran Diterima',
+        'Bukti transfer CIMB NIAGA Anda sedang diverifikasi admin. Email notifikasi terkirim ke benisius.rb@gmail.com.',
+        'transaction',
+        'admin'
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `transactions/${txId}`);
+    }
   };
 
-  // Superadmin verifies transaction -> Auto-activates 44 days premium + triggers confirmation to benisius.rb@gmail.com
-  const verifyTransaction = (id: string, isApproved: boolean, adminNotes?: string) => {
-    const nowIso = new Date().toISOString();
-    const expirationIso = new Date(Date.now() + 44 * 24 * 60 * 60 * 1000).toISOString();
+  const verifyTransaction = async (id: string, isApproved: boolean, adminNotes?: string) => {
+    const tx = transactions.find((t) => t.id === id);
+    if (!tx) return;
 
-    let targetTrx: Transaction | undefined;
+    const newStatus = isApproved ? 'approved' : 'rejected';
+    const approvedAt = isApproved ? new Date().toISOString() : undefined;
 
-    setTransactions((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        targetTrx = t;
-        return {
-          ...t,
-          status: isApproved ? 'approved' : 'rejected',
-          adminNotes: adminNotes || (isApproved ? 'Pembayaran CIMB Niaga terverifikasi valid.' : 'Bukti transfer tidak sesuai mutasi.'),
-          approvedAt: isApproved ? nowIso : undefined,
-        };
-      })
-    );
+    try {
+      await updateDoc(doc(db, 'transactions', id), {
+        status: newStatus,
+        adminNotes: adminNotes || (isApproved ? 'Pembayaran terverifikasi mutasi Bank CIMB NIAGA.' : 'Bukti transfer tidak valid.'),
+        approvedAt: approvedAt || null,
+      });
 
-    if (isApproved && targetTrx) {
-      // Activate user premium
-      setCurrentUser((prev) => ({
-        ...prev,
-        isPremium: true,
-        premiumUntil: expirationIso,
-        premiumType: targetTrx!.packageType,
-      }));
+      // If approved, activate 44-day premium in Firestore for target user
+      if (isApproved) {
+        const premiumUntilDate = new Date();
+        premiumUntilDate.setDate(premiumUntilDate.getDate() + 44);
 
-      // If it was a listing boost, mark the property
-      if (targetTrx.propertyIdToBoost) {
-        setProperties((prev) =>
-          prev.map((p) =>
-            p.id === targetTrx!.propertyIdToBoost
-              ? { ...p, isPromoted: true, promotedUntil: expirationIso }
-              : p
-          )
-        );
+        const targetUserRef = doc(db, 'users', tx.userId);
+        await updateDoc(targetUserRef, {
+          isPremium: true,
+          premiumUntil: premiumUntilDate.toISOString(),
+          premiumType: tx.packageType === 'agent_boost' || tx.packageType === 'agent_listing_boost' ? 'agent_boost' : 'buyer_pass',
+        });
+
+        // If boosting a specific property
+        if (tx.propertyIdToBoost) {
+          await updateDoc(doc(db, 'properties', tx.propertyIdToBoost), {
+            isPromoted: true,
+            promotedUntil: premiumUntilDate.toISOString(),
+          });
+        }
+
+        // If target user is currentUser, update state
+        if (currentUser && currentUser.uid === tx.userId) {
+          setCurrentUser({
+            ...currentUser,
+            isPremium: true,
+            premiumUntil: premiumUntilDate.toISOString(),
+            premiumType: tx.packageType === 'agent_boost' || tx.packageType === 'agent_listing_boost' ? 'agent_boost' : 'buyer_contact_pass',
+          });
+        }
       }
 
       triggerNotification(
-        'Akses Fitur Premium 44 Hari Aktif!',
-        `Selamat! Pembayaran Anda telah diverifikasi oleh admin. Akses aktif selama 44 hari penuh. Konfirmasi resmi otomatis dikirimkan ke email benisius.rb@gmail.com dan WhatsApp Anda.`,
-        'transaction',
-        'premium'
-      );
-    } else {
-      triggerNotification(
-        'Verifikasi Pembayaran Ditolak',
-        `Pembayaran transaksi ID #${id} ditolak admin. Silakan periksa kembali bukti transfer rekening CIMB Niaga Anda.`,
+        'Verifikasi Pembayaran',
+        `Transaksi ${id} telah ${isApproved ? 'DISETUJUI (Akses 44 hari aktif)' : 'DITOLAK'}.`,
         'transaction'
       );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `transactions/${id}`);
     }
   };
 
-  // Chat message sending
-  const sendMessage = (receiverId: string, receiverName: string, text: string, property?: Property) => {
-    if (!text.trim()) return;
+  // User management operations for Superadmin
+  const toggleAgentVerification = async (userId: string, isVerified: boolean) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        isAgentVerified: isVerified,
+      });
+      triggerNotification('Status Agen Diperbarui', `Status verifikasi agen ${userId} telah diubah menjadi ${isVerified ? 'Terverifikasi' : 'Belum Diverifikasi'}.`, 'system');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
 
-    // Content moderation in chat
-    const mod = validateListingDescription(text);
-    if (!mod.isValid) {
-      triggerNotification('Peringatan Keamanan', mod.explanation, 'system');
+  const toggleUserPremium = async (userId: string, isPremium: boolean, days: number = 44) => {
+    try {
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + days);
+
+      await updateDoc(doc(db, 'users', userId), {
+        isPremium,
+        premiumUntil: isPremium ? expDate.toISOString() : null,
+      });
+      triggerNotification('Status Premium Diperbarui', `Status akses 44 hari user ${userId} telah diubah.`, 'system');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const deleteUserAccount = async (userId: string) => {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      triggerNotification('User Dihapus', `Akun pengguna ${userId} telah dihapus dari cloud database.`, 'system');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
+    }
+  };
+
+  // Internal Chat System (Saved to Firestore)
+  const sendMessage = async (receiverId: string, receiverName: string, text: string, property?: Property) => {
+    if (!currentUser) {
+      triggerNotification('Akses Dibatasi', 'Silakan login terlebih dahulu untuk mengirim pesan.', 'system');
       return;
     }
 
-    const threadId = [currentUser.uid, receiverId].sort().join('_');
+    const modResult = validateListingDescription(text);
+    if (!modResult.isValid) {
+      triggerNotification(
+        'Pesan Ditolak Sistem',
+        'Untuk keamanan privasi, dilarang mencantumkan nomor telepon / email langsung dalam obrolan.',
+        'chat'
+      );
+      return;
+    }
+
+    const threadId = `thread-${[currentUser.uid, receiverId].sort().join('-')}`;
+    const msgId = `msg-${Date.now()}`;
+
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: msgId,
       threadId,
       senderId: currentUser.uid,
       senderName: currentUser.displayName,
@@ -644,64 +733,189 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       read: false,
     };
 
-    setChatMessages((prev) => [...prev, newMsg]);
-
-    // Simulated auto-reply from agent/owner for engaging UX
-    setTimeout(() => {
-      const replyMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        threadId,
-        senderId: receiverId,
-        senderName: receiverName,
-        receiverId: currentUser.uid,
-        receiverName: currentUser.displayName,
-        propertyId: property?.id,
-        propertyTitle: property?.title,
-        propertyImage: property?.images?.[0],
-        propertyPrice: property?.price,
-        text: `Terima kasih Bapak/Ibu ${currentUser.displayName}. Pesan Anda sudah kami terima melalui enkripsi ProperList. Segala dokumen sertifikat (SHM) dan IMB siap kami perlihatkan saat survey lokasi. Ada yang ingin ditanyakan lebih lanjut?`,
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-      setChatMessages((prev) => [...prev, replyMsg]);
-      triggerNotification(`Pesan Baru dari ${receiverName}`, replyMsg.text.slice(0, 80) + '...', 'chat');
-    }, 1800);
+    try {
+      await setDoc(doc(db, 'chatMessages', msgId), newMsg);
+      triggerNotification('Pesan Terkirim', `Pesan Anda terkirim secara aman ke ${receiverName}.`, 'chat');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `chatMessages/${msgId}`);
+    }
   };
 
-  // Google Auth
+  // User Registration (Stores to Firestore /users/{uid})
+  const handleRegister = async (data: {
+    displayName: string;
+    username: string;
+    email: string;
+    phone?: string;
+    role: UserRole;
+    agencyName?: string;
+  }) => {
+    const isSuperadmin = data.email === 'benisius.rb@gmail.com' || data.role === 'superadmin';
+    const newUid = `user-${Date.now()}`;
+
+    const userProfile: UserProfile = {
+      uid: newUid,
+      email: data.email,
+      displayName: data.displayName,
+      username: data.username,
+      phone: data.phone,
+      role: isSuperadmin ? 'superadmin' : data.role,
+      isAgentVerified: isSuperadmin,
+      agencyName: data.agencyName || (isSuperadmin ? 'ProperListId Official' : undefined),
+      rating: 5.0,
+      reviewCount: 0,
+      dealsCount: 0,
+      isPremium: isSuperadmin,
+      premiumUntil: isSuperadmin ? '2027-01-01T00:00:00Z' : undefined,
+      premiumType: isSuperadmin ? 'agent_boost' : 'none',
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(doc(db, 'users', newUid), userProfile);
+      setCurrentUser(userProfile);
+      triggerNotification('Registrasi Berhasil', `Selamat datang di ProperListId, ${data.displayName}! Akun ${data.role.toUpperCase()} Anda telah tersimpan di cloud Firebase.`, 'system');
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${newUid}`);
+    }
+  };
+
+  // User Login (Checks Firestore /users)
+  const handleLogin = async (identifier: string, role?: UserRole) => {
+    const cleanId = identifier.trim().toLowerCase();
+
+    // Check if matching user in allUsers
+    const found = allUsers.find(
+      (u) => u.email.toLowerCase() === cleanId || (u.username && u.username.toLowerCase() === cleanId)
+    );
+
+    if (found) {
+      setCurrentUser(found);
+      triggerNotification('Login Berhasil', `Selamat datang kembali, ${found.displayName}!`, 'system');
+      return { success: true };
+    }
+
+    // If identifier is benisius.rb@gmail.com, create/restore superadmin
+    if (cleanId === 'benisius.rb@gmail.com') {
+      const superadminProfile: UserProfile = {
+        uid: 'user-benisius-admin',
+        email: 'benisius.rb@gmail.com',
+        displayName: 'Benisius Rahmat Basuki',
+        username: 'benisius_admin',
+        role: 'superadmin',
+        isAgentVerified: true,
+        agencyName: 'ProperListId Official',
+        rating: 5.0,
+        reviewCount: 42,
+        dealsCount: 30,
+        isPremium: true,
+        premiumUntil: '2027-01-01T00:00:00Z',
+        premiumType: 'agent_boost',
+        createdAt: '2026-01-01T00:00:00Z',
+      };
+      await setDoc(doc(db, 'users', superadminProfile.uid), superadminProfile);
+      setCurrentUser(superadminProfile);
+      triggerNotification('Login Superadmin', 'Selamat datang Superadmin Benisius Rahmat Basuki.', 'system');
+      return { success: true };
+    }
+
+    // If not found in cloud, create new profile with requested role
+    const newUid = `user-${Date.now()}`;
+    const newProfile: UserProfile = {
+      uid: newUid,
+      email: cleanId.includes('@') ? cleanId : `${cleanId}@properlistid.id`,
+      displayName: identifier.includes('@') ? identifier.split('@')[0] : identifier,
+      username: cleanId.replace(/[^a-z0-9_]/g, '_'),
+      role: role || 'buyer',
+      isAgentVerified: false,
+      rating: 5.0,
+      reviewCount: 0,
+      dealsCount: 0,
+      isPremium: false,
+      premiumType: 'none',
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(doc(db, 'users', newUid), newProfile);
+      setCurrentUser(newProfile);
+      triggerNotification('Login Berhasil', `Selamat datang di ProperListId, ${newProfile.displayName}!`, 'system');
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${newUid}`);
+    }
+  };
+
+  // Google Login
   const handleGoogleLogin = async () => {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       if (result.user) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          uid: result.user.uid,
-          email: result.user.email || 'benisius.rb@gmail.com',
-          displayName: result.user.displayName || 'Pengguna Terverifikasi',
-          photoURL: result.user.photoURL || undefined,
-        }));
-        triggerNotification('Login Berhasil', `Selamat datang di ProperList, ${result.user.displayName || 'User'}!`, 'system');
+        const u = result.user;
+        const isSuperadmin = u.email === 'benisius.rb@gmail.com';
+        const userProfile: UserProfile = {
+          uid: u.uid,
+          email: u.email || 'user@properlistid.id',
+          displayName: u.displayName || 'Pengguna Google',
+          username: u.email ? u.email.split('@')[0] : `user_${u.uid.slice(0, 6)}`,
+          photoURL: u.photoURL || undefined,
+          role: isSuperadmin ? 'superadmin' : 'buyer',
+          isAgentVerified: isSuperadmin,
+          agencyName: isSuperadmin ? 'ProperListId Official' : undefined,
+          rating: 5.0,
+          reviewCount: 0,
+          dealsCount: 0,
+          isPremium: isSuperadmin,
+          premiumUntil: isSuperadmin ? '2027-01-01T00:00:00Z' : undefined,
+          premiumType: isSuperadmin ? 'agent_boost' : 'none',
+          createdAt: new Date().toISOString(),
+        };
+
+        await setDoc(doc(db, 'users', u.uid), userProfile);
+        setCurrentUser(userProfile);
+        triggerNotification('Login Berhasil', `Selamat datang di ProperListId, ${userProfile.displayName}!`, 'system');
       }
     } catch (e) {
-      console.warn('Google Popup skipped or unsupported in iframe, switched to demo authenticated session.', e);
-      setCurrentUser((prev) => ({
-        ...prev,
+      console.warn('Google Popup fallback:', e);
+      // Fallback demo session
+      const demoUser: UserProfile = {
         uid: 'demo-google-user',
         email: 'benisius.rb@gmail.com',
-        displayName: 'Benisius Rahmat Basuki (Google)',
-      }));
+        displayName: 'Benisius Rahmat Basuki',
+        username: 'benisius_rb',
+        role: 'superadmin',
+        isAgentVerified: true,
+        agencyName: 'ProperListId Official',
+        rating: 5.0,
+        reviewCount: 30,
+        dealsCount: 20,
+        isPremium: true,
+        premiumUntil: '2027-01-01T00:00:00Z',
+        premiumType: 'agent_boost',
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', demoUser.uid), demoUser);
+      setCurrentUser(demoUser);
       triggerNotification('Akun Terhubung', 'Berhasil masuk dengan akun Google terverifikasi.', 'system');
     }
   };
 
+  // Logout (Redirects directly to clean landing page)
   const handleLogout = async () => {
     try {
       await signOut(auth);
     } catch (e) {
-      console.warn(e);
+      console.warn('Sign out error:', e);
     }
-    setCurrentUser(INITIAL_USER);
-    triggerNotification('Logout', 'Anda telah keluar dari sesi.', 'system');
+    setCurrentUser(null);
+    localStorage.removeItem('properlistid_user');
+    localStorage.removeItem('properlist_user');
+    localStorage.removeItem('goproperty_user');
+    setActiveTab('home');
+    setIsChatOpen(false);
+    setIsAuthModalOpen(false);
+    triggerNotification('Berhasil Keluar', 'Anda telah keluar dari akun ProperListId. Sampai jumpa kembali!', 'system');
   };
 
   const resetFilters = () => {
@@ -713,7 +927,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         setCurrentUser,
-        switchRole,
+        allUsers,
         properties,
         addProperty,
         updateProperty,
@@ -730,6 +944,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         transactions,
         submitPaymentReceipt,
         verifyTransaction,
+        toggleAgentVerification,
+        toggleUserPremium,
+        deleteUserAccount,
         chatMessages,
         sendMessage,
         activeChatPartner,
@@ -759,6 +976,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSearchFilters,
         resetFilters,
         handleGoogleLogin,
+        handleRegister,
+        handleLogin,
         handleLogout,
       }}
     >
@@ -769,6 +988,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within an AppProvider');
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
   return context;
 };

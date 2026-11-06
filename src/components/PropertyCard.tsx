@@ -37,6 +37,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, compact = 
     setIsChatOpen,
     setIsPaymentModalOpen,
     setPaymentPackageSelected,
+    setIsAuthModalOpen,
     triggerNotification
   } = useApp();
 
@@ -49,6 +50,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, compact = 
   // Requires active 44-day buyer pass unless user is superadmin or the owner themselves
   const handleContactAgent = (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (!currentUser) {
+      triggerNotification('Login Diperlukan', 'Silakan masuk atau daftar terlebih dahulu untuk menghubungi agen/pemilik properti.', 'system');
+      setIsAuthModalOpen(true);
+      return;
+    }
 
     if (currentUser.uid === property.ownerId) {
       triggerNotification('Info', 'Ini adalah properti milik Anda sendiri.', 'system');

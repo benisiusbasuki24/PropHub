@@ -42,6 +42,7 @@ export const PropertyDetailModal: React.FC = () => {
     setIsPaymentModalOpen,
     setPaymentPackageSelected,
     setIsKprModalOpen,
+    setIsAuthModalOpen,
     triggerNotification
   } = useApp();
 
@@ -51,9 +52,17 @@ export const PropertyDetailModal: React.FC = () => {
 
   const isFav = favorites.includes(selectedProperty.id);
   const isInComparison = comparisonList.some((p) => p.id === selectedProperty.id);
-  const daysRemaining = calculateDaysRemaining(currentUser.premiumUntil);
+  const daysRemaining = currentUser?.premiumUntil
+    ? calculateDaysRemaining(currentUser.premiumUntil)
+    : { days: 0, isExpired: true };
 
   const handleContact = () => {
+    if (!currentUser) {
+      triggerNotification('Login Diperlukan', 'Silakan masuk atau daftar terlebih dahulu untuk menghubungi agen/pemilik properti.', 'system');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     if (currentUser.uid === selectedProperty.ownerId) {
       triggerNotification('Info', 'Ini adalah properti milik Anda sendiri.', 'system');
       return;
@@ -336,7 +345,7 @@ export const PropertyDetailModal: React.FC = () => {
                     {selectedProperty.ownerRating || 4.9}
                   </span>
                   <span>•</span>
-                  <span>{selectedProperty.ownerAgency || 'ProperList Certified Member'}</span>
+                  <span>{selectedProperty.ownerAgency || 'ProperListId Certified Member'}</span>
                 </div>
               </div>
             </div>

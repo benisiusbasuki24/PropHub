@@ -8,9 +8,10 @@ import {
   ShieldCheck, 
   LogOut, 
   Crown, 
-  CheckCircle2,
   Building,
-  Sparkles
+  AtSign,
+  Phone,
+  CheckCircle2
 } from 'lucide-react';
 import { UserRole } from '../types';
 import { calculateDaysRemaining } from '../utils/currency';
@@ -20,45 +21,78 @@ export const AuthModal: React.FC = () => {
     isAuthModalOpen, 
     setIsAuthModalOpen, 
     currentUser, 
-    setCurrentUser, 
     handleGoogleLogin, 
-    handleLogout,
-    triggerNotification 
+    handleRegister,
+    handleLogin,
+    handleLogout
   } = useApp();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('buyer');
   const [agencyName, setAgencyName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   if (!isAuthModalOpen) return null;
 
-  const daysRemaining = calculateDaysRemaining(currentUser.premiumUntil);
+  const daysRemaining = currentUser?.premiumUntil 
+    ? calculateDaysRemaining(currentUser.premiumUntil) 
+    : { days: 0, isExpired: true };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage('');
 
-    if (mode === 'register') {
-      setCurrentUser({
-        ...currentUser,
-        displayName: name || 'Pengguna Baru',
-        email: email || 'user@properlist.id',
-        role,
-        agencyName: role === 'agent' ? agencyName : undefined,
-      });
-      triggerNotification('Registrasi Berhasil', `Akun ProperList sebagai ${role.toUpperCase()} telah terdaftar.`, 'system');
-    } else {
-      setCurrentUser({
-        ...currentUser,
-        email: email || currentUser.email,
-        displayName: name || currentUser.displayName,
-      });
-      triggerNotification('Login Berhasil', 'Selamat datang kembali di portal ProperList.', 'system');
+    try {
+      if (mode === 'register') {
+        const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (!cleanUsername) {
+          setErrorMessage('Username tidak boleh kosong dan hanya huruf, angka, atau garis bawah (_).');
+          setIsLoading(false);
+          return;
+        }
+
+        const res = await handleRegister({
+          displayName: name.trim(),
+          username: cleanUsername,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          role,
+          agencyName: role === 'agent' ? agencyName.trim() : undefined,
+        });
+
+        if (res?.success) {
+          setIsAuthModalOpen(false);
+        } else {
+          setErrorMessage(res?.error || 'Gagal mendaftar. Silakan coba kembali.');
+        }
+      } else {
+        const cleanId = emailOrUsername.trim();
+        if (!cleanId) {
+          setErrorMessage('Masukkan email atau username Anda.');
+          setIsLoading(false);
+          return;
+        }
+
+        const res = await handleLogin(cleanId, role);
+        if (res?.success) {
+          setIsAuthModalOpen(false);
+        } else {
+          setErrorMessage(res?.error || 'Gagal masuk. Silakan periksa kembali data Anda.');
+        }
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsAuthModalOpen(false);
   };
 
   return (
@@ -72,7 +106,7 @@ export const AuthModal: React.FC = () => {
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-900">
-                {currentUser.displayName ? 'Akun ProperList' : (mode === 'login' ? 'Masuk ke ProperList' : 'Daftar Akun Baru')}
+                {currentUser ? 'Akun ProperListId' : (mode === 'login' ? 'Masuk ke ProperListId' : 'Daftar Akun Pengguna')}
               </h3>
               <p className="text-[11px] text-slate-500">
                 Portal Jual Beli Properti Indonesia Terpercaya
@@ -90,19 +124,29 @@ export const AuthModal: React.FC = () => {
 
         {/* Modal Body */}
         <div className="p-6 space-y-4">
-          {currentUser.displayName ? (
+          {currentUser ? (
             /* Logged In Profile Overview */
             <div className="space-y-4">
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-lg">
-                  {currentUser.displayName.slice(0, 2).toUpperCase()}
+                  {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : 'PL'}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h4 className="font-bold text-slate-900">{currentUser.displayName}</h4>
                   <p className="text-xs text-slate-500">{currentUser.email}</p>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md uppercase tracking-wider inline-block mt-1">
-                    {currentUser.role}
-                  </span>
+                  {currentUser.username && (
+                    <p className="text-[11px] text-emerald-700 font-mono">@{currentUser.username}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {currentUser.role}
+                    </span>
+                    {currentUser.isAgentVerified && (
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Terverifikasi
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -124,17 +168,22 @@ export const AuthModal: React.FC = () => {
                 <p className="text-[11px] text-amber-800">
                   {currentUser.isPremium && !daysRemaining.isExpired
                     ? `Tersisa ${daysRemaining.days} hari masa aktif paket eksklusif Anda.`
-                    : 'Aktifkan paket 44 hari untuk membuka kontak agen atau mempromosikan listing.'}
+                    : 'Aktifkan paket 44 hari untuk membuka kontak agen atau mempromosikan listing eksklusif.'}
                 </p>
               </div>
 
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500">
+                Data profil Anda tersimpan aman dan terenkripsi di cloud database Firebase ProperListId.
+              </div>
+
+              {/* DIRECT LOGOUT BUTTON */}
               <button
                 type="button"
-                onClick={() => {
-                  handleLogout();
+                onClick={async () => {
+                  await handleLogout();
                   setIsAuthModalOpen(false);
                 }}
-                className="w-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 <span>Keluar dari Akun (Logout)</span>
@@ -143,6 +192,40 @@ export const AuthModal: React.FC = () => {
           ) : (
             /* Login / Register Form */
             <div className="space-y-4">
+              {/* Mode Toggle Tabs */}
+              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setErrorMessage('');
+                  }}
+                  className={`py-2 rounded-xl transition-all cursor-pointer ${
+                    mode === 'login' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Masuk ke Akun
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setErrorMessage('');
+                  }}
+                  className={`py-2 rounded-xl transition-all cursor-pointer ${
+                    mode === 'register' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Daftar Akun Baru
+                </button>
+              </div>
+
+              {errorMessage && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl">
+                  {errorMessage}
+                </div>
+              )}
+
               {/* Google One-Click Login */}
               <button
                 type="button"
@@ -170,18 +253,60 @@ export const AuthModal: React.FC = () => {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Lanjutkan dengan Akun Google</span>
+                <span>Masuk dengan Akun Google</span>
               </button>
 
-              <div className="flex items-center gap-2 my-2">
+              <div className="flex items-center gap-2 my-1">
                 <div className="h-px bg-slate-200 flex-1"></div>
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">atau dengan email</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">atau dengan form internal</span>
                 <div className="h-px bg-slate-200 flex-1"></div>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
-                {mode === 'register' && (
+                {mode === 'register' ? (
                   <>
+                    {/* Role Selection for registration */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Pilih Peran Pengguna
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRole('buyer')}
+                          className={`p-2 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
+                            role === 'buyer'
+                              ? 'bg-emerald-50 border-emerald-600 text-emerald-800'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Pembeli
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRole('agent')}
+                          className={`p-2 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
+                            role === 'agent'
+                              ? 'bg-emerald-50 border-emerald-600 text-emerald-800'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Agen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRole('owner')}
+                          className={`p-2 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
+                            role === 'owner'
+                              ? 'bg-emerald-50 border-emerald-600 text-emerald-800'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Pemilik
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
                         Nama Lengkap
@@ -189,7 +314,7 @@ export const AuthModal: React.FC = () => {
                       <input
                         type="text"
                         required
-                        placeholder="Contoh: Rahmat Basuki"
+                        placeholder="Contoh: Benisius Rahmat Basuki"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
@@ -198,81 +323,147 @@ export const AuthModal: React.FC = () => {
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                        Daftar Sebagai
+                        Username (Disimpan di Cloud Firebase)
+                      </label>
+                      <div className="relative">
+                        <AtSign className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          required
+                          placeholder="username_unik"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Alamat Email
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                        <input
+                          type="email"
+                          required
+                          placeholder="nama@email.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Nomor HP / WhatsApp (Disimpan di Cloud)
+                      </label>
+                      <div className="relative">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                        <input
+                          type="tel"
+                          placeholder="0812xxxxxxxx"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {role === 'agent' && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Nama Kantor / Agensi Properti
+                        </label>
+                        <div className="relative">
+                          <Building className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                          <input
+                            type="text"
+                            placeholder="Contoh: Century Premier, Brighton, Ray White"
+                            value={agencyName}
+                            onChange={(e) => setAgencyName(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Email atau Username
+                      </label>
+                      <div className="relative">
+                        <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          required
+                          placeholder="Masukkan email atau username"
+                          value={emailOrUsername}
+                          onChange={(e) => setEmailOrUsername(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Pilih Peran Masuk
                       </label>
                       <select
                         value={role}
                         onChange={(e) => setRole(e.target.value as UserRole)}
                         className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500 cursor-pointer"
                       >
-                        <option value="buyer">Calon Pembeli / Investor Properti</option>
-                        <option value="agent">Agen Properti Profesional</option>
-                        <option value="owner">Pemilik Properti Langsung</option>
+                        <option value="buyer">Calon Pembeli (Buyer)</option>
+                        <option value="agent">Agen Properti (Agent)</option>
+                        <option value="owner">Pemilik Properti (Owner)</option>
+                        <option value="superadmin">Superadmin (benisius.rb@gmail.com)</option>
                       </select>
                     </div>
-
-                    {role === 'agent' && (
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                          Nama Kantor Agensi Properti
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Contoh: Brighton, Century21, Ray White"
-                          value={agencyName}
-                          onChange={(e) => setAgencyName(e.target.value)}
-                          className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
-                        />
-                      </div>
-                    )}
                   </>
                 )}
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                    Alamat Email
+                    Kata Sandi / PIN Keamanan
                   </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="nama@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                    Kata Sandi
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Minimal 6 karakter"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
-                  />
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="Minimal 6 karakter"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500"
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md shadow-emerald-600/20 cursor-pointer transition-transform hover:scale-[1.01]"
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md shadow-emerald-600/20 cursor-pointer transition-transform hover:scale-[1.01] disabled:opacity-50"
                 >
-                  {mode === 'login' ? 'Masuk Sekarang' : 'Daftar Akun'}
+                  {isLoading ? 'Memproses ke Cloud Firebase...' : (mode === 'login' ? 'Masuk Sekarang' : 'Daftar Akun Baru')}
                 </button>
               </form>
 
               <div className="text-center pt-2">
                 <button
                   type="button"
-                  onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                  onClick={() => {
+                    setMode(mode === 'login' ? 'register' : 'login');
+                    setErrorMessage('');
+                  }}
                   className="text-xs font-bold text-emerald-600 hover:underline cursor-pointer"
                 >
                   {mode === 'login'
-                    ? 'Belum punya akun? Buat akun sekarang'
-                    : 'Sudah punya akun? Masuk'}
+                    ? 'Belum punya akun? Daftarkan diri Anda sekarang'
+                    : 'Sudah punya akun? Masuk ke portal'}
                 </button>
               </div>
             </div>

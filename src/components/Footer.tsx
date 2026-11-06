@@ -25,7 +25,7 @@ export const Footer: React.FC = () => {
                 <Building2 className="w-5 h-5" />
               </div>
               <span className="text-xl font-black text-white tracking-tight">
-                Proper<span className="text-emerald-500">List</span>
+                Proper<span className="text-emerald-500">ListId</span>
               </span>
             </div>
 
@@ -143,7 +143,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500">
-          <p>© 2026 ProperList Indonesia. Hak Cipta Dilindungi Undang-Undang.</p>
+          <p>© 2026 ProperListId Indonesia. Hak Cipta Dilindungi Undang-Undang.</p>
           <div className="flex items-center gap-4 text-[11px]">
             <span>Syarat & Ketentuan</span>
             <span>Kebijakan Privasi</span>
