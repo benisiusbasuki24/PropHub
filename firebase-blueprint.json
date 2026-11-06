@@ -28,7 +28,7 @@
         "isVerified": { "type": "boolean" },
         "isPromoted": { "type": "boolean" },
         "promotedUntil": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "sold", "rented", "pending_review", "rejected"] },
+        "status": { "type": "string", "enum": ["active", "sold", "rented", "pending_review", "rejected", "laku", "belum_laku"] },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
@@ -137,6 +137,22 @@
         "createdAt": { "type": "string" }
       },
       "required": ["region", "changePercentage", "message"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "System and user notifications synced across devices",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["kpr", "price_alert", "transaction", "chat", "system"] },
+        "isRead": { "type": "boolean" },
+        "linkTab": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "title", "message", "type"]
     }
   },
   "firestore": {
@@ -163,6 +179,10 @@
     "/priceAlerts/{alertId}": {
       "schema": "PriceAlert",
       "description": "Market price change alerts"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "Cross-device user and system notifications"
     }
   }
 }

@@ -34,6 +34,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import { formatRupiah } from './utils/currency';
+import { isPropertySold } from './types';
 
 const MainAppContent: React.FC = () => {
   const { 
@@ -112,11 +113,17 @@ const MainAppContent: React.FC = () => {
     return true;
   });
 
-  // Sort properties
+  // Sort properties: promoted first, then available (Belum Laku) before sold (Laku), then user sort
   const sortedProperties = [...filteredProperties].sort((a, b) => {
     // Boosted/Promoted listings always rank on top
     if (a.isPromoted && !b.isPromoted) return -1;
     if (!a.isPromoted && b.isPromoted) return 1;
+
+    // Available (Belum Laku) before Sold (Laku)
+    const aSold = isPropertySold(a.status);
+    const bSold = isPropertySold(b.status);
+    if (!aSold && bSold) return -1;
+    if (aSold && !bSold) return 1;
 
     if (sortBy === 'harga_rendah') return a.price - b.price;
     if (sortBy === 'harga_tinggi') return b.price - a.price;

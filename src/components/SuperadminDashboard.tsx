@@ -19,7 +19,7 @@ import {
   Inbox
 } from 'lucide-react';
 import { formatRupiah, calculateDaysRemaining } from '../utils/currency';
-import { KprStatus, Property, UserRole } from '../types';
+import { KprStatus, Property, UserRole, PropertyStatus, isPropertySold, getPropertyStatusInfo } from '../types';
 
 export const SuperadminDashboard: React.FC = () => {
   const { 
@@ -27,6 +27,7 @@ export const SuperadminDashboard: React.FC = () => {
     allUsers,
     properties, 
     updateProperty, 
+    togglePropertyStatus,
     deleteProperty, 
     transactions, 
     verifyTransaction, 
@@ -43,6 +44,8 @@ export const SuperadminDashboard: React.FC = () => {
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState<number>(0);
   const [editTitle, setEditTitle] = useState<string>('');
+  const [editStatus, setEditStatus] = useState<PropertyStatus>('active');
+  const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'belum_laku' | 'laku'>('all');
 
   // Financial Metrics
   const totalRevenue = transactions
@@ -55,12 +58,14 @@ export const SuperadminDashboard: React.FC = () => {
     setEditingPropertyId(prop.id);
     setEditTitle(prop.title);
     setEditPrice(prop.price);
+    setEditStatus(prop.status || 'active');
   };
 
   const handleSaveEdit = async (propId: string) => {
     await updateProperty(propId, {
       title: editTitle,
       price: editPrice,
+      status: editStatus,
     });
     setEditingPropertyId(null);
   };
@@ -275,14 +280,53 @@ export const SuperadminDashboard: React.FC = () => {
       {/* Tab 2: Pengelolaan & Verifikasi Listing */}
       {activeTab === 'listing' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-black text-slate-900">
-                Kelola Semua Listing Properti
+                Pengelolaan & Moderasi Listing Properti (Cloud Firebase)
               </h3>
               <p className="text-xs text-slate-500">
-                Superadmin berhak mengubah harga, judul, serta menghapus listing langsung di cloud database Firebase.
+                Superadmin berhak mengubah harga, judul, menghapus, serta mengubah status properti (Laku / Belum Laku) tersinkronisasi di cloud Firebase.
               </p>
+            </div>
+
+            {/* Filter Status Properti (Laku / Belum Laku) */}
+            <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setListingStatusFilter('all')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  listingStatusFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua ({properties.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setListingStatusFilter('belum_laku')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  listingStatusFilter === 'belum_laku'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Belum Laku ({properties.filter((p) => !isPropertySold(p.status)).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setListingStatusFilter('laku')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  listingStatusFilter === 'laku'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                Laku ({properties.filter((p) => isPropertySold(p.status)).length})
+              </button>
             </div>
           </div>
 
@@ -303,97 +347,143 @@ export const SuperadminDashboard: React.FC = () => {
                     <th className="p-3">Kota / Lokasi</th>
                     <th className="p-3">Harga</th>
                     <th className="p-3">Legalitas</th>
+                    <th className="p-3">Status (Laku / Belum Laku)</th>
                     <th className="p-3">Skor Keaslian</th>
                     <th className="p-3 text-right">Aksi Superadmin</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {properties.map((p) => {
-                    const isEditing = editingPropertyId === p.id;
-                    return (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="p-3">
-                          <div className="space-y-0.5">
+                  {properties
+                    .filter((p) => {
+                      if (listingStatusFilter === 'belum_laku') return !isPropertySold(p.status);
+                      if (listingStatusFilter === 'laku') return isPropertySold(p.status);
+                      return true;
+                    })
+                    .map((p) => {
+                      const isEditing = editingPropertyId === p.id;
+                      const statusInfo = getPropertyStatusInfo(p.status);
+
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3">
+                            <div className="space-y-0.5">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  className="p-1 border rounded-md text-xs font-bold w-full"
+                                />
+                              ) : (
+                                <span 
+                                  onClick={() => setSelectedProperty(p)}
+                                  className="font-bold text-slate-900 hover:text-emerald-700 cursor-pointer block max-w-xs truncate"
+                                >
+                                  {p.title}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 capitalize">
+                                {p.propertyType} • Oleh {p.ownerName}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="p-3 text-slate-600 font-medium">{p.city}</td>
+
+                          <td className="p-3">
                             {isEditing ? (
                               <input
-                                type="text"
-                                value={editTitle}
-                                onChange={(e) => setEditTitle(e.target.value)}
-                                className="p-1 border rounded-md text-xs font-bold w-full"
+                                type="number"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(Number(e.target.value))}
+                                className="p-1 border rounded-md text-xs font-bold w-32"
                               />
                             ) : (
-                              <span 
-                                onClick={() => setSelectedProperty(p)}
-                                className="font-bold text-slate-900 hover:text-emerald-700 cursor-pointer block max-w-xs truncate"
-                              >
-                                {p.title}
-                              </span>
+                              <span className="font-black text-slate-900">{formatRupiah(p.price)}</span>
                             )}
-                            <span className="text-[10px] text-slate-400 capitalize">
-                              {p.propertyType} • Oleh {p.ownerName}
+                          </td>
+
+                          <td className="p-3">
+                            <span className="bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                              {p.certificate}
                             </span>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="p-3 text-slate-600 font-medium">{p.city}</td>
-
-                        <td className="p-3">
-                          {isEditing ? (
-                            <input
-                              type="number"
-                              value={editPrice}
-                              onChange={(e) => setEditPrice(Number(e.target.value))}
-                              className="p-1 border rounded-md text-xs font-bold w-32"
-                            />
-                          ) : (
-                            <span className="font-black text-slate-900">{formatRupiah(p.price)}</span>
-                          )}
-                        </td>
-
-                        <td className="p-3">
-                          <span className="bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
-                            {p.certificate}
-                          </span>
-                        </td>
-
-                        <td className="p-3">
-                          <span className="font-black text-emerald-700">
-                            {p.authenticityScore}%
-                          </span>
-                        </td>
-
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          {/* Status Properti (Laku / Belum Laku) */}
+                          <td className="p-3">
                             {isEditing ? (
-                              <button
-                                onClick={() => handleSaveEdit(p.id)}
-                                className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer"
-                                title="Simpan Perubahan"
+                              <select
+                                value={editStatus}
+                                onChange={(e) => setEditStatus(e.target.value as PropertyStatus)}
+                                className="p-1 border border-slate-300 rounded-md text-xs font-bold bg-white text-slate-900"
                               >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
+                                <option value="active">Belum Laku (Tersedia)</option>
+                                <option value="sold">Laku (Terjual)</option>
+                                <option value="rented">Laku (Tersewa)</option>
+                                <option value="pending_review">Moderasi Review</option>
+                              </select>
                             ) : (
-                              <button
-                                onClick={() => handleStartEdit(p)}
-                                className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg cursor-pointer"
-                                title="Ubah Listing"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="space-y-1">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1 ${statusInfo.badgeClass}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.isSold ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                  {statusInfo.label}
+                                </span>
+                                <div>
+                                  <button
+                                    onClick={() => togglePropertyStatus(p.id, statusInfo.isSold ? 'active' : 'sold')}
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer transition-all border flex items-center gap-1 shadow-2xs ${
+                                      statusInfo.isSold
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                        : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                                    }`}
+                                    title={statusInfo.isSold ? 'Ubah status ke Belum Laku (Tersedia)' : 'Tandai properti sebagai Laku (Terjual)'}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>{statusInfo.isSold ? 'Set Belum Laku' : 'Tandai Laku'}</span>
+                                  </button>
+                                </div>
+                              </div>
                             )}
+                          </td>
 
-                            <button
-                              onClick={() => deleteProperty(p.id)}
-                              className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg cursor-pointer"
-                              title="Hapus Listing"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          <td className="p-3">
+                            <span className="font-black text-emerald-700">
+                              {p.authenticityScore}%
+                            </span>
+                          </td>
+
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isEditing ? (
+                                <button
+                                  onClick={() => handleSaveEdit(p.id)}
+                                  className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer"
+                                  title="Simpan Perubahan"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleStartEdit(p)}
+                                  className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg cursor-pointer"
+                                  title="Ubah Listing"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => deleteProperty(p.id)}
+                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg cursor-pointer"
+                                title="Hapus Listing"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

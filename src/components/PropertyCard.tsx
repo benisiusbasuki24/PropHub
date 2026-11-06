@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property } from '../types';
+import { Property, isPropertySold, getPropertyStatusInfo } from '../types';
 import { useApp } from '../context/AppContext';
 import { 
   Heart, 
@@ -112,6 +112,17 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, compact = 
 
         {/* Badges on Image */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+          {/* Status Badge: Laku vs Belum Laku */}
+          {isPropertySold(property.status) ? (
+            <span className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-md shadow-md uppercase tracking-wider flex items-center gap-1 border border-white/30 animate-pulse">
+              Laku / Terjual
+            </span>
+          ) : (
+            <span className="bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.8 rounded-md uppercase tracking-wider shadow-xs">
+              Belum Laku
+            </span>
+          )}
+
           {/* Promoted 44-Day Badge */}
           {property.isPromoted && (
             <span className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 uppercase tracking-wider">
@@ -128,7 +139,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, compact = 
 
           {/* Listing Type */}
           <span className={`text-[10px] font-bold px-2 py-0.8 rounded-md uppercase tracking-wider ${
-            property.listingType === 'jual' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
+            property.listingType === 'jual' ? 'bg-slate-800/90 text-white' : 'bg-blue-600 text-white'
           }`}>
             {property.listingType === 'jual' ? 'Dijual' : 'Disewa'}
           </span>
@@ -248,14 +259,20 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, compact = 
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleContactAgent}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Hubungi</span>
-            </button>
+            {isPropertySold(property.status) ? (
+              <span className="bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1">
+                Laku / Terjual
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleContactAgent}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Hubungi</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

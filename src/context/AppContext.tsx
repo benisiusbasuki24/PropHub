@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Property, 
+  PropertyStatus,
   UserProfile, 
   Transaction, 
   KprApplication, 
@@ -28,6 +29,7 @@ interface AppContextType {
   properties: Property[];
   addProperty: (propertyData: Partial<Property>) => Promise<{ success: boolean; error?: string; property?: Property }>;
   updateProperty: (id: string, updates: Partial<Property>) => Promise<{ success: boolean; error?: string }>;
+  togglePropertyStatus: (id: string, newStatus: PropertyStatus) => Promise<{ success: boolean }>;
   deleteProperty: (id: string) => Promise<boolean>;
   
   // Favorites & Comparison
@@ -321,15 +323,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
-  // Trigger in-app notification
-  const triggerNotification = (
+  // Real-time Firestore sync: notifications (Cross-device)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const loaded: AppNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        if (
+          !currentUser ||
+          data.userId === currentUser.uid ||
+          data.userId === 'guest' ||
+          data.userId === 'all' ||
+          currentUser.role === 'superadmin'
+        ) {
+          loaded.push({ id: docSnap.id, ...data });
+        }
+      });
+      loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setNotifications(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'notifications');
+    });
+
+    return () => unsub();
+  }, [currentUser?.uid, currentUser?.role]);
+
+  // Trigger in-app notification (persisted to Firestore for real-time cross-device sync)
+  const triggerNotification = async (
     title: string, 
     message: string, 
     type: AppNotification['type'] = 'system',
     linkTab?: string
   ) => {
+    const notifId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newNotif: AppNotification = {
-      id: `notif-${Date.now()}`,
+      id: notifId,
       userId: currentUser?.uid || 'guest',
       title,
       message,
@@ -338,17 +366,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       linkTab,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+    // Optimistic local update
+    setNotifications((prev) => [newNotif, ...prev.filter(n => n.id !== notifId)]);
+
+    try {
+      await setDoc(doc(db, 'notifications', notifId), newNotif);
+    } catch (e) {
+      console.warn('Sync notification to Firestore notice:', e);
+    }
   };
 
-  const markNotificationAsRead = (id: string) => {
+  const markNotificationAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
+    try {
+      await updateDoc(doc(db, 'notifications', id), { isRead: true });
+    } catch (e) {
+      console.warn('Failed to mark notification read in Firestore:', e);
+    }
   };
 
-  const markAllNotificationsAsRead = () => {
+  const markAllNotificationsAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      const promises = notifications.filter(n => !n.isRead).map(n => 
+        updateDoc(doc(db, 'notifications', n.id), { isRead: true }).catch(() => {})
+      );
+      await Promise.all(promises);
+    } catch (e) {
+      console.warn('Failed to mark all notifications read:', e);
+    }
   };
 
   // Property CRUD (Real-time Cloud Firestore)
@@ -422,7 +470,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pbbClear: true,
       },
       viewsCount: 1,
-      status: 'active',
+      status: propertyData.status || 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -455,10 +503,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...updates,
         updatedAt: new Date().toISOString()
       });
+      setSelectedProperty((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
       triggerNotification('Listing Diperbarui', 'Pembaruan data properti berhasil disinkronkan ke cloud.', 'system');
       return { success: true };
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `properties/${id}`);
+    }
+  };
+
+  const togglePropertyStatus = async (id: string, newStatus: PropertyStatus) => {
+    try {
+      const propertyRef = doc(db, 'properties', id);
+      await updateDoc(propertyRef, {
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      });
+      setSelectedProperty((prev) => (prev && prev.id === id ? { ...prev, status: newStatus } : prev));
+      const isSold = newStatus === 'sold' || newStatus === 'laku';
+      triggerNotification(
+        'Status Listing Diperbarui',
+        `Listing kini ditandai "${isSold ? 'LAKU (Terjual)' : 'BELUM LAKU (Tersedia)'}" dan tersinkronisasi langsung ke cloud Firebase di seluruh perangkat.`,
+        'system'
+      );
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `properties/${id}`);
+      return { success: false };
     }
   };
 
@@ -931,6 +1001,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         properties,
         addProperty,
         updateProperty,
+        togglePropertyStatus,
         deleteProperty,
         favorites,
         toggleFavorite,

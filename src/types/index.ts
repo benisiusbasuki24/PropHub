@@ -14,6 +14,48 @@ export interface FacilityMarker {
   distanceKm?: number;
 }
 
+export type PropertyStatus = 'active' | 'sold' | 'rented' | 'pending_review' | 'rejected' | 'laku' | 'belum_laku';
+
+export const isPropertySold = (status?: string): boolean => {
+  return status === 'sold' || status === 'laku' || status === 'rented';
+};
+
+export const getPropertyStatusInfo = (status?: string): { label: string; isSold: boolean; badgeClass: string } => {
+  if (status === 'sold' || status === 'laku') {
+    return { 
+      label: 'Laku (Terjual)', 
+      isSold: true, 
+      badgeClass: 'bg-rose-100 text-rose-800 border border-rose-300' 
+    };
+  }
+  if (status === 'rented') {
+    return { 
+      label: 'Laku (Tersewa)', 
+      isSold: true, 
+      badgeClass: 'bg-purple-100 text-purple-800 border border-purple-300' 
+    };
+  }
+  if (status === 'pending_review') {
+    return { 
+      label: 'Moderasi Review', 
+      isSold: false, 
+      badgeClass: 'bg-amber-100 text-amber-800 border border-amber-300' 
+    };
+  }
+  if (status === 'rejected') {
+    return { 
+      label: 'Ditolak Moderasi', 
+      isSold: false, 
+      badgeClass: 'bg-red-100 text-red-800 border border-red-300' 
+    };
+  }
+  return { 
+    label: 'Belum Laku (Tersedia)', 
+    isSold: false, 
+    badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+  };
+};
+
 export interface Property {
   id: string;
   title: string;
@@ -49,7 +91,7 @@ export interface Property {
     pbbClear: boolean;
   };
   viewsCount: number;
-  status: 'active' | 'sold' | 'rented' | 'pending_review' | 'rejected';
+  status: PropertyStatus;
   createdAt: string;
   updatedAt: string;
 }

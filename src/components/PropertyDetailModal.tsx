@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property } from '../types';
+import { Property, isPropertySold, getPropertyStatusInfo } from '../types';
 import { useApp } from '../context/AppContext';
 import { 
   X, 
@@ -31,6 +31,7 @@ export const PropertyDetailModal: React.FC = () => {
   const { 
     selectedProperty, 
     setSelectedProperty, 
+    togglePropertyStatus,
     currentUser, 
     favorites, 
     toggleFavorite, 
@@ -52,6 +53,9 @@ export const PropertyDetailModal: React.FC = () => {
 
   const isFav = favorites.includes(selectedProperty.id);
   const isInComparison = comparisonList.some((p) => p.id === selectedProperty.id);
+  const statusInfo = getPropertyStatusInfo(selectedProperty.status);
+  const canManageStatus = Boolean(currentUser && (currentUser.uid === selectedProperty.ownerId || currentUser.role === 'superadmin'));
+
   const daysRemaining = currentUser?.premiumUntil
     ? calculateDaysRemaining(currentUser.premiumUntil)
     : { days: 0, isExpired: true };
@@ -103,16 +107,39 @@ export const PropertyDetailModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200 my-auto">
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className={`text-xs font-bold px-2.5 py-1 rounded-md uppercase tracking-wider ${
-              selectedProperty.listingType === 'jual' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
+              selectedProperty.listingType === 'jual' ? 'bg-slate-800 text-white' : 'bg-blue-600 text-white'
             }`}>
               {selectedProperty.listingType === 'jual' ? 'Dijual' : 'Disewa'}
             </span>
             <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2.5 py-1 rounded-md uppercase">
               {selectedProperty.propertyType}
             </span>
+
+            {/* Status Properti: Laku / Belum Laku */}
+            <span className={`text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider inline-flex items-center gap-1.5 ${statusInfo.badgeClass}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.isSold ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+              {statusInfo.label}
+            </span>
+
+            {/* Quick Toggle for Owner or Superadmin */}
+            {canManageStatus && (
+              <button
+                onClick={() => togglePropertyStatus(selectedProperty.id, statusInfo.isSold ? 'active' : 'sold')}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                  statusInfo.isSold
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                }`}
+                title="Ubah status listing di cloud Firebase"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{statusInfo.isSold ? 'Ubah ke Belum Laku' : 'Tandai Laku'}</span>
+              </button>
+            )}
+
             {selectedProperty.isPromoted && (
               <span className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-xs font-bold px-2.5 py-1 rounded-md flex items-center gap-1">
                 <Crown className="w-3.5 h-3.5 fill-current" />
@@ -350,14 +377,20 @@ export const PropertyDetailModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Direct Contact Button */}
-            <button
-              onClick={handleContact}
-              className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-3 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Kirim Pesan Obrolan Langsung</span>
-            </button>
+            {/* Direct Contact Button or Sold Notification */}
+            {statusInfo.isSold ? (
+              <div className="w-full sm:w-auto bg-rose-500/20 border border-rose-400/40 text-rose-200 px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                <span>Properti Ini Telah Laku / Terjual</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleContact}
+                className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-3 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Kirim Pesan Obrolan Langsung</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

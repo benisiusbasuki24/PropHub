@@ -14,7 +14,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { validateListingDescription, evaluatePropertyAuthenticity } from '../utils/moderation';
-import { PropertyType, CertificateType } from '../types';
+import { PropertyType, CertificateType, PropertyStatus } from '../types';
 
 export const CreateListingModal: React.FC = () => {
   const { 
@@ -30,6 +30,7 @@ export const CreateListingModal: React.FC = () => {
   const [price, setPrice] = useState<number | ''>('');
   const [propertyType, setPropertyType] = useState<PropertyType>('rumah');
   const [listingType, setListingType] = useState<'jual' | 'sewa'>('jual');
+  const [status, setStatus] = useState<PropertyStatus>('active');
   const [city, setCity] = useState('Jakarta Selatan');
   const [province, setProvince] = useState('DKI Jakarta');
   const [address, setAddress] = useState('');
@@ -104,6 +105,7 @@ export const CreateListingModal: React.FC = () => {
       price: Number(price),
       propertyType,
       listingType,
+      status,
       city,
       province,
       address,
@@ -228,6 +230,21 @@ export const CreateListingModal: React.FC = () => {
               >
                 <option value="jual">Dijual</option>
                 <option value="sewa">Disewa</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Status Properti *
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as PropertyStatus)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-emerald-500 cursor-pointer"
+              >
+                <option value="active">Belum Laku (Tersedia)</option>
+                <option value="sold">Laku (Terjual)</option>
+                <option value="rented">Laku (Tersewa)</option>
               </select>
             </div>
 
